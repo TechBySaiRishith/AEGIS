@@ -21,12 +21,12 @@ services:
       dockerfile: apps/web/Dockerfile
     ports:
       - "3000:3000"
-    env_file: .env
     depends_on:
       api:
         condition: service_healthy
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:3001
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - PORT=3000
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
       interval: 10s
