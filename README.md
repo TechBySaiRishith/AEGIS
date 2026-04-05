@@ -127,7 +127,6 @@ After all experts complete, the **Council Synthesizer** computes a deterministic
 | **Algorithmic verdict is authoritative** | The LLM critique round _never_ overrides the algorithmic verdict. LLMs enrich the narrative; deterministic rules decide the outcome. This ensures reproducibility and auditability. |
 | **Experts run in parallel** | All three modules run via `Promise.allSettled()`. If one fails, the others still complete and the verdict adjusts confidence downward. |
 | **Graceful degradation** | If no LLM is available or the critique round fails, AEGIS still produces a valid verdict from the algorithmic path. |
-| **Mock mode by default** | `MOCK_MODE=1` is set in `.env.example` so the system works immediately without any API keys. |
 | **Multi-provider LLM registry** | Each module can use a different LLM provider. The registry auto-discovers available providers from environment variables at startup. |
 
 ---
@@ -262,7 +261,7 @@ cd aegis
 
 # 2. Create your environment file
 cp .env.example .env
-# MOCK_MODE=1 is enabled by default — works immediately, no API keys needed
+# Configure at least one LLM provider API key
 
 # 3. Build and start all services
 docker compose up --build
@@ -276,7 +275,7 @@ Wait for the health checks to pass (about 30 seconds), then:
 | **API** | [http://localhost:3001](http://localhost:3001) |
 | **Health** | [http://localhost:3001/api/health](http://localhost:3001/api/health) |
 
-### Test with a real evaluation (mock mode)
+### Test with a real evaluation
 
 ```bash
 curl -X POST http://localhost:3001/api/evaluate \
@@ -301,16 +300,13 @@ Then poll for results:
 curl http://localhost:3001/api/evaluations/abc123...
 ```
 
-### Use with real LLM analysis
+### Use with a specific LLM provider
 
-To get actual AI-powered analysis instead of mock responses, set an API key in `.env`:
+Set an API key in `.env`:
 
 ```bash
 # Edit .env — uncomment and set your key:
 ANTHROPIC_API_KEY=sk-ant-api03-...
-
-# Remove or comment out mock mode:
-# MOCK_MODE=1
 
 # Restart
 docker compose down && docker compose up --build
@@ -372,8 +368,7 @@ curl http://localhost:3001/api/health
     "anthropic": { "available": true, "model": "claude-sonnet-4-5-20250514" },
     "openai": { "available": false },
     "github": { "available": false },
-    "custom": { "available": false },
-    "mock": { "available": false }
+    "custom": { "available": false }
   },
   "modules": {
     "sentinel": { "ready": true },
@@ -506,13 +501,12 @@ All three expert modules run in parallel after the intake stage.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | One provider or `MOCK_MODE` | — | Anthropic Claude API key |
+| `ANTHROPIC_API_KEY` | One provider required | — | Anthropic Claude API key |
 | `COPILOT_GITHUB_TOKEN` | | — | GitHub Copilot OAuth token (`ghu_*`). Run `copilot-api auth` to obtain one. Enables premium models via Copilot Enterprise. |
 | `OPENAI_API_KEY` | | — | OpenAI API key |
 | `GITHUB_TOKEN` | Recommended | — | GitHub PAT for cloning private repos and using GitHub Models |
 | `CUSTOM_LLM_BASE_URL` | | — | OpenAI-compatible endpoint (Ollama, vLLM, etc.) |
 | `CUSTOM_LLM_API_KEY` | | — | API key for the custom endpoint |
-| `MOCK_MODE` | | `1` (in `.env.example`) | Set to `1` to use pre-computed mock responses — no API key needed |
 | `PORT` | | `3001` | API server port |
 | `CORS_ORIGIN` | | `http://localhost:3000` | Allowed CORS origin for the web UI |
 | `DATA_DIR` | | `./data` | Directory for SQLite database and cloned repos |
@@ -522,7 +516,7 @@ All three expert modules run in parallel after the intake stage.
 | `SYNTHESIZER_MODEL` | | (auto) | Model for the Council Synthesizer |
 | `AEGIS_DEFAULT_MODEL` | | (auto) | Fallback model for all modules |
 
-**Note:** At least one LLM provider key _or_ `MOCK_MODE=1` must be configured. If neither is set, the server will fail to start with an explicit error message.
+**Note:** At least one LLM provider key must be configured. If none is set, the server will fail to start with an explicit error message.
 
 ---
 
@@ -579,7 +573,7 @@ aegis/
 │   │   │   │   ├── anthropic.ts    # Anthropic Claude provider
 │   │   │   │   ├── copilot.ts      # GitHub Copilot Enterprise provider (token exchange + auto-refresh)
 │   │   │   │   ├── openai-compat.ts# OpenAI, GitHub Models, custom endpoint providers
-│   │   │   │   └── mock.ts         # Mock provider for demo/testing
+│   │   │   │   └── index.ts        # Barrel re-exports
 │   │   │   ├── db/
 │   │   │   │   ├── schema.ts       # Drizzle table definitions
 │   │   │   │   ├── queries.ts      # CRUD operations
@@ -603,7 +597,7 @@ aegis/
 │   ├── aegis.db                    # SQLite database
 │   └── repos/                      # Cloned repositories (per evaluation)
 ├── docker-compose.yml              # API + Web services with health checks
-├── .env.example                    # Environment template (MOCK_MODE=1 by default)
+├── .env.example                    # Environment template
 ├── pnpm-workspace.yaml             # Workspace configuration
 ├── tsconfig.base.json              # Shared TypeScript config
 └── package.json                    # Root workspace scripts
@@ -624,7 +618,6 @@ AEGIS supports multiple LLM providers simultaneously through its **LLM Registry*
 | **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` |
 | **GitHub Models** | `GITHUB_TOKEN` | `gpt-4o` |
 | **Custom** (OpenAI-compatible) | `CUSTOM_LLM_BASE_URL` + `CUSTOM_LLM_API_KEY` | `default` |
-| **Mock** | `MOCK_MODE=1` | `mock-v1` |
 
 ### Copilot Provider (GitHub Copilot Enterprise)
 
@@ -676,7 +669,7 @@ For each module, the registry resolves the provider in this order:
 
 1. **Per-module override** — e.g. `SENTINEL_MODEL=anthropic/claude-sonnet-4-5-20250514`
 2. **Global default** — `AEGIS_DEFAULT_MODEL=anthropic/claude-sonnet-4-5-20250514`
-3. **First available provider** — in preference order: Anthropic → Copilot → OpenAI → GitHub → Custom → Mock
+3. **First available provider** — in preference order: Anthropic → Copilot → OpenAI → GitHub → Custom
 
 ### Using Ollama (Local Models)
 
@@ -690,15 +683,6 @@ CUSTOM_LLM_BASE_URL=http://localhost:11434/v1
 CUSTOM_LLM_API_KEY=unused
 AEGIS_DEFAULT_MODEL=custom/llama3.1
 ```
-
-### Mock Mode
-
-When `MOCK_MODE=1` is set, all LLM calls return pre-computed structured responses. This is useful for:
-- Running demos without API keys
-- Development and testing
-- CI/CD pipelines
-
-Mock mode is **enabled by default** in `.env.example` so `docker compose up` works immediately.
 
 ---
 

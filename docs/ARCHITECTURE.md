@@ -105,7 +105,7 @@ Every LLM provider implements the `LLMProvider` interface defined in `apps/api/s
 
 ```typescript
 interface LLMProvider {
-  readonly id: LLMProviderType;       // "anthropic" | "copilot" | "openai" | "github" | "custom" | "mock"
+  readonly id: LLMProviderType;       // "anthropic" | "copilot" | "openai" | "github" | "custom"
   readonly displayName: string;        // Human-readable name
   readonly model: string;              // Model identifier (e.g. "claude-sonnet-4-5-20250514")
   complete(prompt: string, options?: CompletionOptions): Promise<LLMResponse>;
@@ -126,7 +126,6 @@ interface CompletionOptions {
 | `anthropic.ts` | Anthropic Claude | `@anthropic-ai/sdk` |
 | `copilot.ts` | GitHub Copilot Enterprise | `openai` (OpenAI SDK) — token exchange via `api.github.com/copilot_internal/v2/token`, completions via `api.githubcopilot.com/chat/completions`. Auto-refreshes short-lived tokens. |
 | `openai-compat.ts` | OpenAI, GitHub Models, Custom | `openai` (OpenAI SDK) |
-| `mock.ts` | Mock (testing/demo) | None — returns structured fixtures |
 
 The `openai-compat.ts` file exports three factory functions:
 - `createOpenAIProvider(model)` — standard OpenAI endpoint
@@ -141,7 +140,7 @@ The `LLMRegistry` class (`apps/api/src/llm/registry.ts`) is a singleton that:
 2. **Resolves** the correct provider for each expert module using a three-level fallback:
    - Per-module env var (`SENTINEL_MODEL`, `WATCHDOG_MODEL`, etc.)
    - Global default (`AEGIS_DEFAULT_MODEL`)
-   - First available provider (Anthropic → Copilot → OpenAI → GitHub → Custom → Mock)
+   - First available provider (Anthropic → Copilot → OpenAI → GitHub → Custom)
 3. **Creates ad-hoc instances** when a per-module override specifies a different model than the registered default
 
 ```

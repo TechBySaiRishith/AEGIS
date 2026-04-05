@@ -14,7 +14,6 @@ import {
   createCustomProvider,
 } from "./openai-compat.js";
 import { CopilotProvider, isCopilotAvailable } from "./copilot.js";
-import { MockProvider } from "./mock.js";
 
 // ─── Default models per provider ─────────────────────────────
 
@@ -24,7 +23,6 @@ const DEFAULT_MODELS: Record<LLMProviderType, string> = {
   copilot: "claude-sonnet-4.5",
   github: "gpt-4.1-mini",
   custom: "default",
-  mock: "mock-v1",
 };
 
 // ─── Registry ────────────────────────────────────────────────
@@ -39,13 +37,6 @@ export class LLMRegistry {
 
   /** Scan environment variables and register every provider that has credentials */
   private discover(): void {
-    const isMock = process.env.MOCK_MODE === "1";
-
-    // Mock is always registered when MOCK_MODE is on
-    if (isMock) {
-      this.register(new MockProvider());
-    }
-
     // Anthropic
     if (process.env.ANTHROPIC_API_KEY) {
       this.register(
@@ -93,11 +84,6 @@ export class LLMRegistry {
       if (parsed && this.providers.has(parsed.provider)) {
         return parsed.provider;
       }
-    }
-
-    // Mock takes priority in mock mode
-    if (process.env.MOCK_MODE === "1" && this.providers.has("mock")) {
-      return "mock";
     }
 
     // First available in preference order
@@ -177,8 +163,7 @@ export class LLMRegistry {
 
     throw new Error(
       `[llm] No LLM provider available for module "${moduleId}". ` +
-        "Set at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, COPILOT_GITHUB_TOKEN, GITHUB_TOKEN) " +
-        "or enable MOCK_MODE=1.",
+        "Set at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, COPILOT_GITHUB_TOKEN, GITHUB_TOKEN).",
     );
   }
 
@@ -206,8 +191,6 @@ export class LLMRegistry {
         return createGitHubModelsProvider(model);
       case "custom":
         return createCustomProvider(model);
-      case "mock":
-        return new MockProvider();
     }
   }
 
@@ -237,7 +220,6 @@ export class LLMRegistry {
       "copilot",
       "github",
       "custom",
-      "mock",
     ];
     const result = {} as Record<
       LLMProviderType,

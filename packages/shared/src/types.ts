@@ -26,7 +26,7 @@ export type EvaluationStatus =
 
 export type ExpertModuleId = "sentinel" | "watchdog" | "guardian";
 
-export type LLMProvider = "anthropic" | "openai" | "copilot" | "github" | "custom" | "mock";
+export type LLMProvider = "anthropic" | "openai" | "copilot" | "github" | "custom";
 
 // ─── LLM Configuration ────────────────────────────────────
 

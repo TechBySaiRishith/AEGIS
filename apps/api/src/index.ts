@@ -43,7 +43,6 @@ function printBanner(): void {
   console.log("├──────────────────────────────────────────────┤");
   console.log(`│  Port:       ${String(config.port).padEnd(32)}│`);
   console.log(`│  CORS:       ${config.corsOrigin.padEnd(32)}│`);
-  console.log(`│  Mock mode:  ${(config.mockMode ? "ON" : "OFF").padEnd(32)}│`);
   console.log(`│  Providers:  ${(providers.length ? providers.join(", ") : "none").padEnd(32)}│`);
   console.log(`│  Modules:    ${(modulesReady ? "sentinel, watchdog, guardian" : "waiting for provider").padEnd(32)}│`);
   console.log(`│  Data dir:   ${config.dataDir.padEnd(32)}│`);

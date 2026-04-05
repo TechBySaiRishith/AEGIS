@@ -56,8 +56,7 @@ curl http://localhost:3001/api/health
     "copilot": { "available": false },
     "openai": { "available": false },
     "github": { "available": false },
-    "custom": { "available": false },
-    "mock": { "available": false }
+    "custom": { "available": false }
   },
   "modules": {
     "sentinel": { "ready": true },
@@ -458,7 +457,7 @@ type ExpertModuleId = "sentinel" | "watchdog" | "guardian";
 ### LLM Providers
 
 ```typescript
-type LLMProvider = "anthropic" | "copilot" | "openai" | "github" | "custom" | "mock";
+type LLMProvider = "anthropic" | "copilot" | "openai" | "github" | "custom";
 ```
 
 ### Finding

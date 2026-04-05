@@ -67,7 +67,6 @@ export function parseModelSpec(
     "copilot",
     "github",
     "custom",
-    "mock",
   ];
   if (!valid.includes(provider)) return undefined;
   return { provider, model };

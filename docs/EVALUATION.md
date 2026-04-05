@@ -36,7 +36,7 @@ Guide for capstone evaluators and graders. This document explains how to run AEG
 git clone https://github.com/your-org/aegis.git
 cd aegis
 
-# 2. Create environment file (mock mode is enabled by default)
+# 2. Create environment file
 cp .env.example .env
 
 # 3. Build and start
@@ -57,7 +57,7 @@ Expected output:
 {
   "status": "ok",
   "version": "0.1.0",
-  "providers": { "mock": { "available": true, "model": "mock" }, ... },
+  "providers": { "anthropic": { "available": true, "model": "claude-sonnet-4-5-20250514" }, ... },
   "modules": { "sentinel": { "ready": true }, "watchdog": { "ready": true }, "guardian": { "ready": true } }
 }
 ```
@@ -70,20 +70,9 @@ Navigate to **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ## What to Expect
 
-### In Mock Mode (Default)
-
-When `MOCK_MODE=1` (the default), AEGIS works without any API keys:
-
-- Expert modules return **pre-computed, structured responses** that simulate real analysis
-- The pipeline runs through all stages (intake → expert analysis → council synthesis → report generation)
-- The verdict is computed using the **real algorithmic verdict logic** — only the LLM calls are mocked
-- The SSE event stream, database persistence, and report generation all work identically to real mode
-
-Mock mode is useful for verifying the end-to-end pipeline, evaluating the architecture, and testing the UI.
-
 ### With Real LLM Analysis
 
-When a real API key is configured (e.g., `ANTHROPIC_API_KEY`), AEGIS sends actual code and prompts to the LLM:
+When an API key is configured (e.g., `ANTHROPIC_API_KEY`), AEGIS sends actual code and prompts to the LLM:
 
 - Expert modules send **structured prompts** with the application's source code to the LLM
 - Each module receives a JSON response with findings, scores, and recommendations
@@ -101,13 +90,10 @@ To use real AI-powered analysis:
 nano .env
 ```
 
-Set your Anthropic API key and disable mock mode:
+Set your Anthropic API key:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
-
-# Comment out or remove mock mode:
-# MOCK_MODE=1
 ```
 
 Restart the services:
@@ -117,9 +103,9 @@ docker compose down
 docker compose up --build
 ```
 
-Verify that the health check shows `anthropic: { "available": true }` and `mock: { "available": false }`.
+Verify that the health check shows `anthropic: { "available": true }`.
 
-> **Copilot Enterprise alternative:** If you have GitHub Copilot Enterprise, you can skip the Anthropic key entirely. Run `copilot-api auth` (one-time browser login), then set `COPILOT_GITHUB_TOKEN` in `.env`. This gives AEGIS access to premium models such as `copilot/gpt-5.4` and `copilot/claude-opus-4.6` at no additional per-token cost. The default `ANTHROPIC_API_KEY` / `MOCK_MODE` flow still works as before.
+> **Copilot Enterprise alternative:** If you have GitHub Copilot Enterprise, you can skip the Anthropic key entirely. Run `copilot-api auth` (one-time browser login), then set `COPILOT_GITHUB_TOKEN` in `.env`. This gives AEGIS access to premium models such as `copilot/gpt-5.4` and `copilot/claude-opus-4.6` at no additional per-token cost.
 
 ---
 
@@ -267,8 +253,8 @@ Confidence = mean(module scores) / 100. Reduced by 0.15 for each module that fai
 | **Multi-input support** | GitHub URLs (with clone), conversation JSON, API endpoints |
 | **Real-time updates** | SSE event stream with replay, status progression, per-module progress |
 | **Report generation** | JSON and HTML report formats from structured data (no LLM for reports) |
-| **Multi-provider LLM** | Anthropic, Copilot (GitHub Copilot Enterprise), OpenAI, GitHub Models, custom endpoints (Ollama, vLLM), mock |
-| **Configurable** | Per-module model configuration, mock mode for demos, environment-driven |
+| **Multi-provider LLM** | Anthropic, Copilot (GitHub Copilot Enterprise), OpenAI, GitHub Models, custom endpoints (Ollama, vLLM) |
+| **Configurable** | Per-module model configuration, environment-driven |
 
 ### D4 — Documentation & Presentation
 
@@ -301,13 +287,10 @@ docker compose up --build
 Ensure at least one provider is configured in `.env`:
 
 ```bash
-# Option A: Use mock mode (no API keys needed)
-MOCK_MODE=1
-
-# Option B: Set a real API key
+# Option A: Set a real API key
 ANTHROPIC_API_KEY=sk-ant-api03-...
 
-# Option C: Use GitHub Copilot Enterprise (run `copilot-api auth` first)
+# Option B: Use GitHub Copilot Enterprise (run `copilot-api auth` first)
 # Provides access to premium models like copilot/gpt-5.4, copilot/claude-opus-4.6, etc.
 COPILOT_GITHUB_TOKEN=ghu_...
 ```

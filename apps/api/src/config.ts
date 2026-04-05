@@ -26,8 +26,6 @@ export const config = {
   port: Number(env("PORT", "3001")),
   corsOrigin: env("CORS_ORIGIN", "http://localhost:3000"),
   dataDir: env("DATA_DIR", "./data"),
-  mockMode: env("MOCK_MODE") === "1",
-
   // API keys
   anthropicApiKey: env("ANTHROPIC_API_KEY"),
   openaiApiKey: env("OPENAI_API_KEY"),
@@ -56,7 +54,6 @@ export function availableProviders(): LLMProvider[] {
   if (config.openaiApiKey) providers.push("openai");
   if (config.githubToken) providers.push("github");
   if (config.customLlmBaseUrl && config.customLlmApiKey) providers.push("custom");
-  if (config.mockMode) providers.push("mock");
   return providers;
 }
 
@@ -70,11 +67,11 @@ export function validateConfig(): void {
     (config.customLlmBaseUrl && config.customLlmApiKey) ||
     isCopilotAvailable();
 
-  if (!hasKey && !config.mockMode) {
+  if (!hasKey) {
     throw new Error(
-      "AEGIS startup failed: no LLM API key configured and MOCK_MODE is not enabled.\n" +
+      "AEGIS startup failed: no LLM API key configured.\n" +
         "Set at least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, COPILOT_GITHUB_TOKEN, " +
-        "CUSTOM_LLM_BASE_URL+CUSTOM_LLM_API_KEY, or set MOCK_MODE=1."
+        "or CUSTOM_LLM_BASE_URL+CUSTOM_LLM_API_KEY."
     );
   }
 }
