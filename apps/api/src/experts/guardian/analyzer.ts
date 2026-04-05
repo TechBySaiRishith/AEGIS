@@ -8,8 +8,9 @@ import type {
   Severity,
 } from "@aegis/shared";
 import { EXPERT_MODULES } from "@aegis/shared";
-import type { ExpertModule, ExpertModuleConfig } from "../base.js";
-import { getLLMRegistry } from "../../llm/registry.js";
+import type { ExpertModule } from "../base.js";
+import type { LLMProvider } from "../../llm/provider.js";
+import { config } from "../../config.js";
 import {
   GUARDIAN_SYSTEM_PROMPT,
   buildGuardianUserPrompt,
@@ -241,11 +242,12 @@ function toFindings(raw: GuardianLLMResponse): Finding[] {
 
 export class GuardianAnalyzer implements ExpertModule {
   readonly id = "guardian" as const;
-  readonly meta = EXPERT_MODULES.guardian;
+  readonly name = EXPERT_MODULES.guardian.name;
+  private readonly meta = EXPERT_MODULES.guardian;
 
-  async analyse(
+  async analyze(
     app: ApplicationProfile,
-    config: ExpertModuleConfig,
+    llm: LLMProvider,
   ): Promise<ExpertAssessment> {
     const startTime = Date.now();
 
@@ -258,10 +260,7 @@ export class GuardianAnalyzer implements ExpertModule {
       const userPrompt = buildGuardianUserPrompt(app, codeSnippets);
 
       // 3. Call the LLM
-      const registry = getLLMRegistry();
-      const provider = registry.getProviderForModule("guardian");
-
-      const llmResponse = await provider.complete(userPrompt, {
+      const llmResponse = await llm.complete(userPrompt, {
         systemPrompt: GUARDIAN_SYSTEM_PROMPT,
         temperature: 0.2,
         maxTokens: 8_000,

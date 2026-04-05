@@ -10,7 +10,6 @@ import type {
 import { EXPERT_MODULES } from "@aegis/shared";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
-import { getLLMRegistry } from "../../llm/registry.js";
 import { config } from "../../config.js";
 import {
   WATCHDOG_SYSTEM_PROMPT,
@@ -292,13 +291,7 @@ export class WatchdogAnalyzer implements ExpertModule {
   readonly name = META.name;
   readonly framework = META.framework;
 
-  private provider: LLMProvider;
-
-  constructor(provider?: LLMProvider) {
-    this.provider = provider ?? getLLMRegistry().getProviderForModule(MODULE_ID);
-  }
-
-  async analyse(app: ApplicationProfile): Promise<ExpertAssessment> {
+  async analyze(app: ApplicationProfile, llm: LLMProvider): Promise<ExpertAssessment> {
     const startTime = Date.now();
 
     try {
@@ -310,7 +303,7 @@ export class WatchdogAnalyzer implements ExpertModule {
       const userPrompt = buildWatchdogUserPrompt(app, codeSnippets);
 
       // 3. Send to LLM
-      const response = await this.provider.complete(userPrompt, {
+      const response = await llm.complete(userPrompt, {
         systemPrompt: WATCHDOG_SYSTEM_PROMPT,
         temperature: 0.2,
         maxTokens: 8192,
@@ -355,7 +348,7 @@ export class WatchdogAnalyzer implements ExpertModule {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[watchdog] Analysis failed: ${message}`);
-      return this.failedAssessment(message, this.provider.model);
+      return this.failedAssessment(message, llm.model);
     }
   }
 
