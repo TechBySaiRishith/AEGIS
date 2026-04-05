@@ -21,7 +21,8 @@ import { SENTINEL_SYSTEM_PROMPT, buildSentinelUserPrompt } from "./prompts.js";
 // ─── Constants ───────────────────────────────────────────────
 
 const MODULE_META = EXPERT_MODULES.sentinel;
-const MAX_CODE_BYTES = 50 * 1024; // 50 KB cap to fit LLM context
+const MAX_CODE_BYTES = 80 * 1024; // 80 KB cap to fit LLM context
+const MAX_INDIVIDUAL_FILE = 40_000; // 40 KB per file — allows reading large app.py
 
 /** Extensions we consider analysable source code */
 const SOURCE_EXTENSIONS = new Set([
@@ -30,6 +31,7 @@ const SOURCE_EXTENSIONS = new Set([
   ".php", ".cs", ".c", ".cpp", ".h", ".hpp",
   ".vue", ".svelte", ".astro",
   ".sql", ".graphql", ".gql",
+  ".html", ".htm", ".sh",
 ]);
 
 /** Config / manifest files worth reading regardless of extension */
@@ -64,8 +66,8 @@ async function readKeyFiles(
   // Build a prioritised list of files to read
   const prioritised = buildPriorityList(app);
 
-  // Also discover files from the repo tree up to 3 levels deep
-  const discovered = await discoverFiles(repoDir, 3);
+  // Also discover files from the repo tree up to 5 levels deep
+  const discovered = await discoverFiles(repoDir, 5);
 
   // Merge: prioritised first, then discovered (de-duped)
   const seen = new Set<string>();
@@ -85,8 +87,8 @@ async function readKeyFiles(
     try {
       const info = await stat(absPath);
       if (!info.isFile()) continue;
-      // Skip very large individual files (> 20 KB)
-      if (info.size > 20_000) continue;
+      // Skip extremely large files (> 40 KB) — code excerpts handle these
+      if (info.size > MAX_INDIVIDUAL_FILE) continue;
 
       const content = await readFile(absPath, "utf-8");
       const trimmed = content.slice(0, MAX_CODE_BYTES - totalBytes);

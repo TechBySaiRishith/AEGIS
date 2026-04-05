@@ -23,7 +23,7 @@ const MODULE_ID = "watchdog" as const;
 const META = EXPERT_MODULES[MODULE_ID];
 
 /** Max characters per file to avoid blowing the context window */
-const MAX_FILE_CHARS = 15_000;
+const MAX_FILE_CHARS = 30_000;
 
 /** Max total characters across all files sent to the LLM */
 const MAX_TOTAL_CHARS = 100_000;

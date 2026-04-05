@@ -145,18 +145,46 @@ export function buildGuardianUserPrompt(
 - **Total files:** ${app.totalFiles} | **Total lines:** ${app.totalLines}
 - **Entry points:** ${app.entryPoints.join(", ") || "none listed"}
 - **Dependencies:** ${deps}
+${app.detectedModels && app.detectedModels.length > 0 ? `- **AI models in use:** ${app.detectedModels.join(", ")}` : ""}
+${app.environmentVariables && app.environmentVariables.length > 0 ? `- **Environment variables:** ${app.environmentVariables.join(", ")}` : ""}
 
 ## AI integrations detected (governance-relevant)
 
 Evaluate these integrations for governance implications: Are there model cards? Bias testing? Human oversight? Transparency mechanisms? Do NOT assess them for technical security (Sentinel) or adversarial AI risks (Watchdog).
 
 ${aiIntegrations}
+${app.securityProfile ? `
+## Security context (governance-relevant aspects)
+
+- Authentication: ${app.securityProfile.hasAuthentication ? "Present" : "ABSENT — governance concern for access control and accountability"}
+- File upload: ${app.securityProfile.hasFileUpload ? "Present — check for data governance around uploaded content" : "Not detected"}
+- Debug mode: ${app.securityProfile.debugModeEnabled ? "ENABLED — governance concern for information disclosure" : "Not detected"}
+` : ""}
+${app.dataHandling && app.dataHandling.length > 0 ? `
+## Data handling patterns (privacy & governance relevance)
+
+${app.dataHandling.map((d) => `- **${d.type}**: ${d.description}`).join("\n")}
+` : ""}
+${app.routes && app.routes.length > 0 ? `
+## Application endpoints (${app.routes.length} routes)
+
+Review for human oversight gaps, access control governance, and transparency:
+
+${app.routes.slice(0, 25).map((r) => `- \`${r.method} ${r.path}\` → ${r.handler ? `${r.handler}()` : r.file}`).join("\n")}
+` : ""}
 
 ## Files for governance review
 
 The following files have been selected for governance analysis — documentation, configuration, data-handling code, model-loading code, and dependency manifests:
 
 ${snippetBlock}
+${app.codeExcerpts && Object.keys(app.codeExcerpts).length > 0 ? `
+## Code excerpts from large files
+
+These are governance-relevant sections from files too large to include in full:
+
+${Object.entries(app.codeExcerpts).map(([filePath, content]) => `### ${filePath} (key sections)\n\`\`\`\n${content}\n\`\`\``).join("\n\n")}
+` : ""}
 
 ## Your task
 

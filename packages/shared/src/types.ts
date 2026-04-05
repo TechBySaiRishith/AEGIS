@@ -51,7 +51,7 @@ export interface LLMResponse {
 
 // ─── Application Intake ────────────────────────────────────
 
-export type InputType = "github_url" | "conversation_json" | "api_endpoint";
+export type InputType = "github_url" | "conversation_json" | "api_endpoint" | "text";
 
 export interface ApplicationProfile {
   id: string;
@@ -68,6 +68,52 @@ export interface ApplicationProfile {
   totalFiles: number;
   totalLines: number;
   clonedAt?: string;
+
+  /** Specific AI/LLM model identifiers found in code (e.g. "gpt-4o", "whisper-1") */
+  detectedModels?: string[];
+
+  /** Security-relevant features detected in the application */
+  securityProfile?: SecurityProfile;
+
+  /** API routes / endpoints detected */
+  routes?: RouteInfo[];
+
+  /** Environment variables referenced in the code */
+  environmentVariables?: string[];
+
+  /** Data handling patterns detected */
+  dataHandling?: DataHandlingPattern[];
+
+  /**
+   * Smart excerpts from large source files that exceed normal read limits.
+   * Keys are relative file paths; values are concatenated key sections
+   * (route defs, AI calls, security code) extracted from the file.
+   */
+  codeExcerpts?: Record<string, string>;
+}
+
+export interface SecurityProfile {
+  hasAuthentication: boolean;
+  hasFileUpload: boolean;
+  hasRateLimiting: boolean;
+  hasCSRFProtection: boolean;
+  hasInputValidation: boolean;
+  hasCORS: boolean;
+  debugModeEnabled: boolean;
+  findings: string[];
+}
+
+export interface RouteInfo {
+  method: string;
+  path: string;
+  file: string;
+  handler?: string;
+}
+
+export interface DataHandlingPattern {
+  type: string;
+  description: string;
+  files: string[];
 }
 
 export interface AIIntegration {
@@ -136,6 +182,7 @@ export interface CouncilVerdict {
   perModuleSummary: Record<ExpertModuleId, string>;
   algorithmicVerdict: Verdict; // always computed, no LLM needed
   llmEnhanced: boolean; // whether LLM was used to enhance narrative
+  deliberation?: CouncilDeliberation; // structured arbitration trace
 }
 
 // ─── Evaluation (Full Run) ─────────────────────────────────
@@ -155,6 +202,35 @@ export interface Evaluation {
 
 // ─── Reports ───────────────────────────────────────────────
 
+export interface RiskSummaryEntry {
+  module: ExpertModuleId;
+  moduleName: string;
+  score: number;
+  riskLevel: Severity;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  infoCount: number;
+  topFinding: string | null;
+}
+
+export interface ActionableRecommendation {
+  priority: "immediate" | "short-term" | "long-term";
+  title: string;
+  description: string;
+  relatedFindings: string[];
+  module: ExpertModuleId;
+}
+
+export interface CouncilDeliberation {
+  arbitrationProcess: string;
+  crossReferences: string[];
+  disagreements: string[];
+  corroborations: string[];
+  confidenceFactors: string[];
+}
+
 export interface EvaluationReport {
   id: string;
   evaluationId: string;
@@ -165,6 +241,9 @@ export interface EvaluationReport {
   applicationDescription: string;
   moduleSummaries: Record<ExpertModuleId, ModuleReportSection>;
   councilAnalysis: string;
+  riskSummary: RiskSummaryEntry[];
+  recommendations: ActionableRecommendation[];
+  councilDeliberation: CouncilDeliberation;
   generatedAt: string;
 }
 

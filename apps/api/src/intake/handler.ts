@@ -24,6 +24,8 @@ export async function handleIntake(
       return handleConversationJSON(request);
     case "api_endpoint":
       return handleAPIEndpoint(request);
+    case "text":
+      return handleText(request);
     default:
       throw new Error(`Unsupported input type: "${request.inputType satisfies never}"`);
   }
@@ -37,9 +39,19 @@ async function handleGitHub(
   const evaluationId = nanoid();
   const repoDir = path.join(config.dataDir, "repos", evaluationId);
 
-  await cloneRepo(request.source, repoDir);
+  // Normalize GitHub URL (strip trailing .git, trailing slashes)
+  let repoUrl = request.source.trim();
+  repoUrl = repoUrl.replace(/\/+$/, "");
+  if (!repoUrl.endsWith(".git") && repoUrl.startsWith("https://github.com/")) {
+    repoUrl = repoUrl + ".git";
+  }
+
+  await cloneRepo(repoUrl, repoDir);
 
   const analysis = await analyzeApplication(repoDir);
+
+  // Derive a better name from the GitHub URL if possible
+  const urlName = extractRepoName(request.source);
 
   return {
     id: evaluationId,
@@ -47,9 +59,21 @@ async function handleGitHub(
     sourceUrl: request.source,
     clonedAt: new Date().toISOString(),
     ...analysis,
+    // Use GitHub repo name if the analyzer only returned a UUID-based dir name
+    ...(urlName && analysis.name !== urlName ? { name: urlName } : {}),
     // Override description if caller provided one
     ...(request.description ? { description: request.description } : {}),
   };
+}
+
+function extractRepoName(url: string): string | null {
+  try {
+    const cleaned = url.replace(/\.git$/, "").replace(/\/+$/, "");
+    const parts = cleaned.split("/");
+    return parts[parts.length - 1] || null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Conversation JSON Handler ───────────────────────────────
@@ -146,6 +170,29 @@ async function handleAPIEndpoint(
     framework: "api",
     language: "unknown",
     entryPoints: [request.source],
+    dependencies: [],
+    aiIntegrations: [],
+    fileStructure: [],
+    totalFiles: 0,
+    totalLines: 0,
+  };
+}
+
+// ─── Text Handler ────────────────────────────────────────────
+
+async function handleText(
+  request: EvaluateRequest,
+): Promise<ApplicationProfile> {
+  const id = nanoid();
+
+  return {
+    id,
+    inputType: "text",
+    name: request.source,
+    description: request.description ?? request.source,
+    framework: "unknown",
+    language: "unknown",
+    entryPoints: [],
     dependencies: [],
     aiIntegrations: [],
     fileStructure: [],
