@@ -20,7 +20,7 @@ import { MockProvider } from "./mock.js";
 const DEFAULT_MODELS: Record<LLMProviderType, string> = {
   anthropic: "claude-sonnet-4-5-20250514",
   openai: "gpt-4o",
-  github: "gpt-4o-mini",
+  github: "gpt-4.1-mini",
   custom: "default",
   mock: "mock-v1",
 };
