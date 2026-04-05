@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import type BetterSqlite3 from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema.js";
 
@@ -11,7 +12,7 @@ if (!existsSync(DATA_DIR)) {
 }
 
 const dbPath = join(DATA_DIR, "aegis.db");
-const sqlite = new Database(dbPath);
+const sqlite: BetterSqlite3.Database = new Database(dbPath);
 
 // WAL mode for better concurrent read performance
 sqlite.pragma("journal_mode = WAL");
