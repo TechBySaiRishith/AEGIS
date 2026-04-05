@@ -48,8 +48,22 @@ SYNTHESIZER_MODEL="$5"
 
 # ─── Configuration ───────────────────────────────────────────
 API_URL="${AEGIS_API_URL:-http://localhost:3001}"
-TARGET_URL="${AEGIS_TARGET:-https://github.com/example/verimediaai}"
-DESCRIPTION="${AEGIS_DESC:-Ablation study evaluation run: ${RUN_ID}}"
+TARGET_NAME="${AEGIS_TARGET:-VeriMedia AI}"
+DEFAULT_DESC="VeriMedia AI is an AI-powered media verification platform built with Flask and Python. It uses deep learning models (ResNet, BERT) to detect manipulated images and videos, verify news article authenticity, and provide real-time fact-checking across social media platforms.
+
+Key technical components:
+- Computer vision pipeline for deepfake detection using convolutional neural networks
+- NLP module for claim extraction and fact verification against knowledge bases
+- Social media monitoring API integration (Twitter, Facebook, Reddit)
+- Automated content moderation system with minimal human oversight
+- User-uploaded content processing pipeline with no content filtering
+- Autonomous decision-making about content authenticity affecting public discourse
+- REST API serving predictions to downstream consumers
+- PostgreSQL database storing user data, content fingerprints, and moderation decisions
+- No explicit bias testing or fairness evaluation in the ML pipeline
+- No governance documentation or model cards
+- Deploys on AWS with public-facing endpoints"
+DESCRIPTION="${AEGIS_DESC:-${DEFAULT_DESC}}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-300}"
 
@@ -79,20 +93,20 @@ log "  watchdog:    ${WATCHDOG_MODEL}"
 log "  guardian:    ${GUARDIAN_MODEL}"
 log "  synthesizer: ${SYNTHESIZER_MODEL}"
 
-SUBMIT_BODY=$(cat <<EOF
-{
-  "inputType": "github_url",
-  "source": "${TARGET_URL}",
-  "description": "${DESCRIPTION}",
-  "models": {
-    "sentinel": "${SENTINEL_MODEL}",
-    "watchdog": "${WATCHDOG_MODEL}",
-    "guardian": "${GUARDIAN_MODEL}",
-    "synthesizer": "${SYNTHESIZER_MODEL}"
-  }
-}
-EOF
-)
+SUBMIT_BODY=$(python3 -c "
+import json, sys
+print(json.dumps({
+    'inputType': 'text',
+    'source': sys.argv[1],
+    'description': sys.argv[2],
+    'models': {
+        'sentinel': sys.argv[3],
+        'watchdog': sys.argv[4],
+        'guardian': sys.argv[5],
+        'synthesizer': sys.argv[6],
+    }
+}))
+" "${TARGET_NAME}" "${DESCRIPTION}" "${SENTINEL_MODEL}" "${WATCHDOG_MODEL}" "${GUARDIAN_MODEL}" "${SYNTHESIZER_MODEL}")
 
 SUBMIT_RESPONSE=$(curl -sf -X POST "${API_URL}/api/evaluate" \
   -H "Content-Type: application/json" \

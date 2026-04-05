@@ -103,6 +103,39 @@ export class CopilotProvider implements LLMProvider {
 
         const tokenLimit = options?.maxTokens ?? 4096;
 
+        const body = JSON.stringify({
+          model: this.model,
+          messages,
+          max_completion_tokens: tokenLimit,
+          temperature: options?.temperature ?? 0.3,
+          stream: false,
+        });
+
+        // Guard: truncate user message if serialized body exceeds API limit.
+        // Copilot API rejects requests with "Too many parameter values" when
+        // the body is too large.  JSON-encoding of code with escapes can
+        // easily 2× the raw character count.
+        const MAX_BODY_BYTES = 100_000;
+        if (body.length > MAX_BODY_BYTES) {
+          const excess = body.length - MAX_BODY_BYTES;
+          const userMsg = messages[messages.length - 1];
+          const trimLength = Math.max(1000, userMsg.content.length - excess - 500);
+          userMsg.content =
+            userMsg.content.slice(0, trimLength) +
+            "\n\n… [prompt truncated to fit API limits — analyse what is provided above]";
+          // Re-serialize with truncated message
+          const trimmedBody = JSON.stringify({
+            model: this.model,
+            messages,
+            max_completion_tokens: tokenLimit,
+            temperature: options?.temperature ?? 0.3,
+            stream: false,
+          });
+          var requestBody = trimmedBody;
+        } else {
+          var requestBody = body;
+        }
+
         const controller = new AbortController();
         const timer = setTimeout(
           () => controller.abort(),
@@ -118,13 +151,7 @@ export class CopilotProvider implements LLMProvider {
             "Editor-Version": EDITOR_VERSION,
             "Copilot-Integration-Id": INTEGRATION_ID,
           },
-          body: JSON.stringify({
-            model: this.model,
-            messages,
-            max_completion_tokens: tokenLimit,
-            temperature: options?.temperature ?? 0.3,
-            stream: false,
-          }),
+          body: requestBody,
         });
 
         clearTimeout(timer);

@@ -16,7 +16,7 @@ const MAX_FILES_IN_STRUCTURE = 100;
 const MAX_ROUTES_COUNT = 30;
 const MAX_ENV_VARS_COUNT = 30;
 const MAX_DATA_HANDLING_COUNT = 20;
-const MAX_PROMPT_CHARS = 48_000; // ~50KB budget minus system prompt headroom
+const MAX_PROMPT_CHARS = 40_000; // ~40KB — leaves headroom after JSON encoding
 
 const BINARY_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
