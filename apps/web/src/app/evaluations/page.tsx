@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { VERDICT_STYLES, STATUS_LABELS } from "@aegis/shared";
 import type { Evaluation, Verdict, EvaluationStatus } from "@aegis/shared";
@@ -9,31 +10,69 @@ import { getEvaluations } from "@/lib/api";
 function StatusBadge({ status }: { status: EvaluationStatus }) {
   const isRunning = !["completed", "failed"].includes(status);
   const isFailed = status === "failed";
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em] ${
         isFailed
-          ? "bg-[var(--reject-bg)] text-[var(--reject)]"
+          ? "border-[var(--reject)]/20 bg-[var(--reject-bg)] text-[var(--reject)]"
           : isRunning
-            ? "bg-[var(--accent)]/10 text-[var(--accent)]"
-            : "bg-[var(--approve-bg)] text-[var(--approve)]"
+            ? "border-[var(--accent)]/20 bg-[var(--accent)]/10 text-[var(--accent)]"
+            : "border-[var(--approve)]/20 bg-[var(--approve-bg)] text-[var(--approve)]"
       }`}
     >
-      {isRunning && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
-      {STATUS_LABELS[status] || status}
+      {isRunning ? <span className="h-2 w-2 animate-pulse-glow rounded-full bg-current" /> : null}
+      {STATUS_LABELS[status] ?? status}
     </span>
   );
 }
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
   const style = VERDICT_STYLES[verdict];
+
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold"
-      style={{ background: style.bg, color: style.color }}
+      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em]"
+      style={{
+        color: style.color,
+        background: style.bg,
+        borderColor: `color-mix(in srgb, ${style.color} 20%, transparent)`,
+      }}
     >
-      {style.icon} {style.label}
+      <span>{style.icon}</span>
+      {style.label}
     </span>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="panel rounded-[1.5rem] p-5">
+            <div className="skeleton animate-shimmer h-3 w-24" />
+            <div className="skeleton animate-shimmer mt-4 h-8 w-20" />
+            <div className="skeleton animate-shimmer mt-3 h-3 w-36" />
+          </div>
+        ))}
+      </div>
+      <div className="panel overflow-hidden rounded-[1.75rem]">
+        <div className="space-y-4 p-6">
+          {[0, 1, 2, 3].map((row) => (
+            <div key={row} className="grid gap-4 border-b border-white/6 pb-4 last:border-b-0 last:pb-0 lg:grid-cols-[2fr_1.2fr_1.2fr_1fr]">
+              <div className="space-y-3">
+                <div className="skeleton animate-shimmer h-4 w-44" />
+                <div className="skeleton animate-shimmer h-3 w-72" />
+              </div>
+              <div className="skeleton animate-shimmer h-9 w-32" />
+              <div className="skeleton animate-shimmer h-9 w-32" />
+              <div className="skeleton animate-shimmer h-4 w-24 justify-self-end" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -50,81 +89,154 @@ export default function EvaluationsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const stats = useMemo(() => {
+    const active = evaluations.filter((evaluation) => !["completed", "failed"].includes(evaluation.status)).length;
+    const completed = evaluations.filter((evaluation) => evaluation.status === "completed").length;
+    const flagged = evaluations.filter((evaluation) => evaluation.council?.verdict === "REJECT").length;
+
+    return [
+      { label: "Total evaluations", value: evaluations.length.toString().padStart(2, "0") },
+      { label: "Active runs", value: active.toString().padStart(2, "0") },
+      { label: "Reject verdicts", value: flagged.toString().padStart(2, "0") },
+      { label: "Completed", value: completed.toString().padStart(2, "0") },
+    ];
+  }, [evaluations]);
+
   if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin-slow rounded-full border-2 border-[var(--accent)] border-t-transparent" />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (error) {
     return (
-      <div className="mx-auto max-w-lg pt-20 text-center">
-        <div className="rounded-xl border border-[var(--reject)]/30 bg-[var(--reject-bg)] p-6">
-          <p className="text-sm text-[var(--reject)]">Failed to load evaluations: {error}</p>
+      <div className="mx-auto max-w-2xl pt-20 text-center">
+        <div className="panel rounded-[1.75rem] border-[var(--reject)]/25 bg-[linear-gradient(180deg,rgba(239,68,68,0.16),rgba(24,24,27,0.96))] p-8">
+          <div className="text-[0.72rem] uppercase tracking-[0.26em] text-[var(--reject)]">Load failure</div>
+          <p className="mt-4 text-base text-[var(--reject)]">Failed to load evaluations: {error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Evaluations</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">{evaluations.length} evaluation{evaluations.length !== 1 ? "s" : ""}</p>
+    <div className="space-y-8 pb-12">
+      <section className="panel animate-scale-in rounded-[2rem] px-6 py-8 sm:px-8 lg:px-10">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl space-y-4">
+            <div className="section-kicker">Evaluation archive</div>
+            <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">Operational review ledger</h1>
+            <p className="max-w-2xl text-base leading-8 text-[var(--text-muted)]">
+              Monitor every intake, in-flight council review, and final verdict from a single
+              mission-ready surface.
+            </p>
+          </div>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center rounded-2xl border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-5 py-3 text-sm font-semibold text-[var(--accent)] transition duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)]/14"
+          >
+            Launch new evaluation
+          </Link>
         </div>
-        <a
-          href="/"
-          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--background)] transition hover:brightness-110"
-        >
-          New evaluation
-        </a>
-      </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat, index) => (
+            <div key={stat.label} className={`panel-interactive rounded-[1.4rem] border border-white/8 bg-white/[0.03] px-5 py-5 animate-slide-up ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : index === 2 ? "stagger-3" : "stagger-4"}`}>
+              <div className="metric-label">{stat.label}</div>
+              <div className="metric-value mt-4">{stat.value}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {evaluations.length === 0 ? (
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-12 text-center">
-          <p className="text-[var(--text-muted)]">No evaluations yet. Submit your first application to get started.</p>
+        <div className="panel animate-scale-in rounded-[2rem] p-10 text-center sm:p-14">
+          <div className="mx-auto grid h-[4.5rem] w-[4.5rem] place-items-center rounded-[1.75rem] border border-[var(--accent)]/20 bg-[var(--accent)]/10 text-3xl text-[var(--accent)] shadow-[0_0_40px_rgba(34,211,238,0.12)]">
+            ⌁
+          </div>
+          <h2 className="mt-6 text-2xl font-semibold">No evaluations in the ledger</h2>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--text-muted)]">
+            Submit your first application to populate the command center with expert assessments,
+            council verdicts, and remediation-ready findings.
+          </p>
+          <Link
+            href="/"
+            className="mt-8 inline-flex rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 px-5 py-3 text-sm font-semibold text-[var(--accent)] transition duration-200 hover:bg-[var(--accent)]/14"
+          >
+            Start the first review
+          </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">Application</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--text-muted)]">Verdict</th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--text-muted)]">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-subtle)]">
-              {evaluations.map((ev) => (
-                <tr
-                  key={ev.id}
-                  onClick={() => router.push(`/evaluations/${ev.id}`)}
-                  className="cursor-pointer bg-[var(--surface)]/50 transition hover:bg-[var(--surface)]"
-                >
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{ev.application?.name || "Untitled"}</div>
-                    <div className="mt-0.5 text-xs text-[var(--text-muted)] truncate max-w-xs">
-                      {ev.application?.description || ev.id}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={ev.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    {ev.council?.verdict ? <VerdictBadge verdict={ev.council.verdict} /> : <span className="text-[var(--text-muted)]">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right text-[var(--text-muted)]">
-                    {new Date(ev.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </td>
+        <section className="panel overflow-hidden rounded-[2rem] animate-scale-in">
+          <div className="border-b border-white/6 px-6 py-5 sm:px-8">
+            <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+              Recent activity
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="bg-white/[0.03] text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                  <th className="px-6 py-4 sm:px-8">Application</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Verdict</th>
+                  <th className="px-6 py-4 text-right sm:px-8">Opened</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {evaluations.map((evaluation) => (
+                  <tr
+                    key={evaluation.id}
+                    onClick={() => router.push(`/evaluations/${evaluation.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/evaluations/${evaluation.id}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    className="group cursor-pointer border-t border-white/6 transition duration-200 hover:bg-white/[0.035]"
+                  >
+                    <td className="px-6 py-5 sm:px-8">
+                      <div className="space-y-2">
+                        <div className="font-semibold text-[var(--text)] transition group-hover:text-[var(--accent)]">
+                          {evaluation.application.name}
+                        </div>
+                        <div className="max-w-xl text-sm leading-6 text-[var(--text-muted)]">
+                          {evaluation.application.description || evaluation.application.sourceUrl || evaluation.id}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <StatusBadge status={evaluation.status} />
+                    </td>
+                    <td className="px-6 py-5">
+                      {evaluation.council?.verdict ? (
+                        <VerdictBadge verdict={evaluation.council.verdict} />
+                      ) : (
+                        <span className="inline-flex rounded-full border border-white/8 px-3 py-1 text-[0.72rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                          Pending
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-right text-[var(--text-muted)] sm:px-8">
+                      {new Date(evaluation.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                      <div className="mt-1 text-xs text-[var(--text-muted)]/75">
+                        {new Date(evaluation.createdAt).toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
   );

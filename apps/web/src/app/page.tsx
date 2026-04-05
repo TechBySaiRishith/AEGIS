@@ -6,16 +6,49 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { InputType } from "@aegis/shared";
 import { submitEvaluation } from "@/lib/api";
 
-const INPUT_TYPES: { value: InputType; label: string; placeholder: string }[] = [
-  { value: "github_url", label: "GitHub URL", placeholder: "https://github.com/org/repo" },
-  { value: "conversation_json", label: "Conversation JSON", placeholder: "https://example.com/conversation.json" },
-  { value: "api_endpoint", label: "API endpoint", placeholder: "https://api.example.com/v1/chat" },
+const INPUT_TYPES: { value: InputType; label: string; placeholder: string; hint: string }[] = [
+  {
+    value: "github_url",
+    label: "GitHub URL",
+    placeholder: "https://github.com/org/repo",
+    hint: "Repository or branch to inspect",
+  },
+  {
+    value: "conversation_json",
+    label: "Conversation JSON",
+    placeholder: "https://example.com/conversation.json",
+    hint: "Transcript, traces, or prompt logs",
+  },
+  {
+    value: "api_endpoint",
+    label: "API endpoint",
+    placeholder: "https://api.example.com/v1/chat",
+    hint: "Live model or AI workflow endpoint",
+  },
 ];
 
 const STEPS = [
-  { num: "01", title: "Submit", desc: "Provide your AI application source — a GitHub URL, conversation log, or API endpoint." },
-  { num: "02", title: "Analyze", desc: "Three expert modules evaluate security, LLM safety, and governance compliance in parallel." },
-  { num: "03", title: "Verdict", desc: "The Council of Experts synthesizes findings into a unified verdict with confidence score." },
+  {
+    num: "01",
+    title: "Intake and scoping",
+    desc: "AEGIS fingerprints the application, input surface, and operating context before any expert analysis begins.",
+  },
+  {
+    num: "02",
+    title: "Parallel expert review",
+    desc: "Sentinel, Watchdog, and Guardian execute concurrently across security, LLM behavior, and governance controls.",
+  },
+  {
+    num: "03",
+    title: "Council verdict",
+    desc: "A unified decision package consolidates findings, confidence, and remediation priorities for leadership review.",
+  },
+];
+
+const HERO_METRICS = [
+  { label: "Expert modules", value: "03" },
+  { label: "Risk domains", value: "05" },
+  { label: "Council synthesis", value: "Live" },
 ];
 
 export default function Home() {
@@ -26,135 +59,242 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const currentInput = INPUT_TYPES.find((type) => type.value === inputType) ?? INPUT_TYPES[0];
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!source.trim()) return;
+
     setLoading(true);
     setError(null);
+
     try {
-      const res = await submitEvaluation({ inputType, source: source.trim(), description: description.trim() || undefined });
-      router.push(`/evaluations/${res.evaluationId}`);
+      const response = await submitEvaluation({
+        inputType,
+        source: source.trim(),
+        description: description.trim() || undefined,
+      });
+      router.push(`/evaluations/${response.evaluationId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Submission failed");
+    } finally {
       setLoading(false);
     }
   };
 
-  const currentInput = INPUT_TYPES.find((t) => t.value === inputType)!;
-
   return (
-    <div className="space-y-20">
-      {/* Hero */}
-      <section className="pt-12 text-center">
-        <div className="mb-4 inline-block rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-1.5 text-xs font-medium tracking-wide text-[var(--accent)]">
-          UNICC AI Safety Lab
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-          <span className="text-[var(--accent)]">AEGIS</span> AI Safety Lab
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--text-muted)]">
-          Adversarial evaluation and governance for AI systems — powered by a Council of Experts
-          that analyzes security, LLM safety, and compliance in parallel.
-        </p>
-      </section>
+    <div className="space-y-24 pb-14">
+      <section className="panel animate-scale-in rounded-[2rem] px-6 py-10 sm:px-8 lg:px-10 lg:py-12">
+        <div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_48%),radial-gradient(circle_at_72%_60%,rgba(167,139,250,0.12),transparent_36%)]" />
+        <div className="absolute -left-12 top-16 h-40 w-40 rounded-full bg-[var(--accent)]/10 blur-3xl" />
+        <div className="absolute right-16 top-8 h-24 w-24 animate-float rounded-full border border-[var(--accent)]/20 bg-[var(--accent)]/10 blur-xl" />
+        <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+          <div className="relative space-y-8">
+            <div className="animate-slide-up">
+              <div className="section-kicker">Council of Experts</div>
+              <h1
+                className="mt-6 max-w-4xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl lg:text-[4.8rem] lg:leading-[0.96]"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Mission control for
+                <span className="text-gradient"> AI safety assurance</span>
+              </h1>
+              <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--text-muted)] sm:text-lg">
+                AEGIS gives UNICC security researchers a command-center view of AI application
+                risk, combining adversarial evaluation, governance review, and production security
+                analysis in one authoritative workflow.
+              </p>
+            </div>
 
-      {/* Submission form */}
-      <section className="mx-auto max-w-2xl">
-        <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-lg shadow-black/20">
-          <h2 className="mb-6 text-lg font-semibold">Run an evaluation</h2>
-
-          {/* Input type selector */}
-          <div className="mb-4">
-            <label className="mb-2 block text-sm text-[var(--text-muted)]">Input type</label>
-            <div className="flex gap-2">
-              {INPUT_TYPES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setInputType(t.value)}
-                  className={`rounded-lg border px-3 py-2 text-sm transition ${
-                    inputType === t.value
-                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
-                      : "border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--text-muted)]"
-                  }`}
+            <div className="grid gap-4 sm:grid-cols-3">
+              {HERO_METRICS.map((metric, index) => (
+                <div
+                  key={metric.label}
+                  className={`panel-interactive animate-slide-up rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-5 ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : "stagger-3"}`}
                 >
-                  {t.label}
-                </button>
+                  <div className="metric-label">{metric.label}</div>
+                  <div className="metric-value mt-3">{metric.value}</div>
+                </div>
               ))}
             </div>
-          </div>
 
-          {/* Source input */}
-          <div className="mb-4">
-            <label className="mb-2 block text-sm text-[var(--text-muted)]">Source</label>
-            <input
-              type="text"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              placeholder={currentInput.placeholder}
-              required
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-sm text-[var(--text)] placeholder-[var(--text-muted)]/50 outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/50"
-            />
-          </div>
-
-          {/* Description */}
-          <div className="mb-6">
-            <label className="mb-2 block text-sm text-[var(--text-muted)]">Description <span className="text-[var(--text-muted)]/50">(optional)</span></label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of the AI application..."
-              rows={3}
-              className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-sm text-[var(--text)] placeholder-[var(--text-muted)]/50 outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/50"
-            />
-          </div>
-
-          {error && (
-            <div className="mb-4 rounded-lg border border-[var(--reject)]/30 bg-[var(--reject-bg)] px-4 py-2.5 text-sm text-[var(--reject)]">
-              {error}
+            <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">
+              <span className="data-chip rounded-full px-3 py-2">Security posture</span>
+              <span className="data-chip rounded-full px-3 py-2">LLM resilience</span>
+              <span className="data-chip rounded-full px-3 py-2">Governance controls</span>
             </div>
-          )}
+          </div>
 
-          <button
-            type="submit"
-            disabled={loading || !source.trim()}
-            className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Submitting..." : "Run evaluation"}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="panel animate-slide-up stagger-2 rounded-[1.75rem] p-6 sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="section-kicker">Start evaluation</div>
+                <h2 className="mt-4 text-2xl font-semibold tracking-tight">Submit an AI system</h2>
+                <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                  Point AEGIS at a repository, transcript, or endpoint and launch the expert review.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 px-4 py-3 text-right">
+                <div className="metric-label">Mode</div>
+                <div className="mt-2 text-sm font-semibold text-[var(--accent)]">Dark operations</div>
+              </div>
+            </div>
+
+            <div className="mt-8 space-y-6">
+              <div>
+                <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                  Intake format
+                </label>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {INPUT_TYPES.map((type, index) => {
+                    const active = inputType === type.value;
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setInputType(type.value)}
+                        className={`panel-interactive rounded-2xl border px-4 py-4 text-left ${
+                          active
+                            ? "border-[var(--accent)]/45 bg-[var(--accent)]/10 shadow-[0_0_0_1px_rgba(34,211,238,0.15)]"
+                            : "border-white/8 bg-white/[0.025] hover:border-white/16"
+                        } ${index === 0 ? "animate-slide-up stagger-1" : index === 1 ? "animate-slide-up stagger-2" : "animate-slide-up stagger-3"}`}
+                      >
+                        <div className="text-sm font-semibold text-[var(--text)]">{type.label}</div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{type.hint}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                    Source locator
+                  </label>
+                  <input
+                    type="text"
+                    value={source}
+                    onChange={(event) => setSource(event.target.value)}
+                    placeholder={currentInput.placeholder}
+                    required
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                    Mission note
+                    <span className="ml-2 tracking-normal lowercase text-[var(--text-muted)]/75">optional</span>
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Describe the deployment context, threat posture, or research objective."
+                    rows={4}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm leading-7 text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60"
+                  />
+                </div>
+              </div>
+
+              {error ? (
+                <div className="rounded-2xl border border-[var(--reject)]/25 bg-[var(--reject-bg)] px-4 py-3 text-sm text-[var(--reject)]">
+                  {error}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={loading || !source.trim()}
+                className="group relative inline-flex w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--accent)]/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.95),rgba(8,145,178,0.88))] px-4 py-3.5 text-sm font-semibold text-[var(--background)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                <span className="absolute inset-y-0 left-0 w-24 animate-scan bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)] opacity-70" />
+                <span className="relative flex items-center gap-2">
+                  {loading ? (
+                    <>
+                      <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--background)]" />
+                      Initializing evaluation…
+                    </>
+                  ) : (
+                    <>Launch Council review</>
+                  )}
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
 
-      {/* How it works */}
-      <section>
-        <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">How it works</h2>
-        <div className="grid gap-6 sm:grid-cols-3">
-          {STEPS.map((step) => (
-            <div key={step.num} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-6">
-              <div className="mb-3 text-3xl font-bold text-[var(--accent)]/30">{step.num}</div>
-              <h3 className="mb-2 font-semibold">{step.title}</h3>
-              <p className="text-sm leading-relaxed text-[var(--text-muted)]">{step.desc}</p>
+      <section className="space-y-8">
+        <div className="max-w-3xl space-y-3">
+          <div className="section-kicker">How it works</div>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">A deliberate three-stage review pipeline</h2>
+          <p className="text-[var(--text-muted)]">
+            Built for high-stakes deployments where every finding needs context, traceability, and an
+            institution-ready decision path.
+          </p>
+        </div>
+
+        <div className="relative grid gap-5 lg:grid-cols-3">
+          <div className="pointer-events-none absolute left-[16.66%] right-[16.66%] top-12 hidden h-px bg-[linear-gradient(90deg,rgba(34,211,238,0.18),rgba(167,139,250,0.22),rgba(245,158,11,0.16))] lg:block" />
+          {STEPS.map((step, index) => (
+            <div key={step.num} className={`panel panel-interactive animate-slide-up rounded-[1.6rem] p-6 ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : "stagger-3"}`}>
+              <div className="relative mb-6 flex items-center gap-4">
+                <div className="relative grid h-12 w-12 place-items-center rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 text-sm font-semibold text-[var(--accent)]">
+                  <span className="absolute inset-1 rounded-xl border border-white/8" />
+                  <span className="relative">{step.num}</span>
+                </div>
+                <div className="text-lg font-semibold">{step.title}</div>
+              </div>
+              <p className="text-sm leading-7 text-[var(--text-muted)]">{step.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Expert modules */}
-      <section className="pb-12">
-        <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">Council of Experts</h2>
-        <div className="grid gap-6 sm:grid-cols-3">
-          {(Object.entries(EXPERT_MODULES) as [string, typeof EXPERT_MODULES[keyof typeof EXPERT_MODULES]][]).map(([id, mod]) => {
-            const accentVar = `var(--${id})`;
+      <section className="space-y-8">
+        <div className="max-w-3xl space-y-3">
+          <div className="section-kicker">Council of Experts</div>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Three perspectives, one unified decision surface</h2>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {(Object.entries(EXPERT_MODULES) as Array<
+            [string, (typeof EXPERT_MODULES)[keyof typeof EXPERT_MODULES]]
+          >).map(([id, module], index) => {
+            const accent = `var(--${id})`;
             return (
               <div
                 key={id}
-                className="rounded-xl border bg-[var(--surface)] p-6"
-                style={{ borderColor: `color-mix(in srgb, ${accentVar} 30%, transparent)` }}
+                className={`panel panel-interactive animate-slide-up rounded-[1.75rem] p-6 ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : "stagger-3"}`}
+                style={{
+                  borderColor: `color-mix(in srgb, ${accent} 34%, rgba(255,255,255,0.08))`,
+                  background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 12%, rgba(24,24,27,0.98)) 0%, rgba(24,24,27,0.96) 50%), linear-gradient(135deg, rgba(255,255,255,0.04), transparent)`,
+                }}
               >
-                <div className="mb-3 text-3xl">{mod.icon}</div>
-                <h3 className="mb-1 font-semibold" style={{ color: accentVar }}>{mod.name}</h3>
-                <p className="mb-3 text-xs text-[var(--text-muted)]">{mod.framework}</p>
-                <p className="text-sm leading-relaxed text-[var(--text-muted)]">{mod.description}</p>
+                <div className="flex items-start justify-between gap-5">
+                  <div>
+                    <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-black/20 text-2xl">
+                      {module.icon}
+                    </div>
+                    <h3 className="mt-5 text-2xl font-semibold" style={{ color: accent }}>
+                      {module.name}
+                    </h3>
+                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                      {module.framework}
+                    </p>
+                  </div>
+                  <div className="rounded-full border border-white/10 px-3 py-1 text-[0.7rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    Module 0{index + 1}
+                  </div>
+                </div>
+
+                <p className="mt-6 text-sm leading-7 text-[var(--text-muted)]">{module.description}</p>
+
+                <div className="mt-8 flex items-center justify-between border-t border-white/8 pt-4 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                  <span>Distinct lens</span>
+                  <span style={{ color: accent }}>Always in council</span>
+                </div>
               </div>
             );
           })}
