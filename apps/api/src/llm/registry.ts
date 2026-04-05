@@ -13,6 +13,7 @@ import {
   createGitHubModelsProvider,
   createCustomProvider,
 } from "./openai-compat.js";
+import { CopilotProvider, isCopilotAvailable } from "./copilot.js";
 import { MockProvider } from "./mock.js";
 
 // ─── Default models per provider ─────────────────────────────
@@ -20,6 +21,7 @@ import { MockProvider } from "./mock.js";
 const DEFAULT_MODELS: Record<LLMProviderType, string> = {
   anthropic: "claude-sonnet-4-5-20250514",
   openai: "gpt-4o",
+  copilot: "claude-sonnet-4.5",
   github: "gpt-4.1-mini",
   custom: "default",
   mock: "mock-v1",
@@ -51,13 +53,20 @@ export class LLMRegistry {
       );
     }
 
+    // GitHub Copilot (premium models via api.githubcopilot.com)
+    if (isCopilotAvailable()) {
+      this.register(
+        new CopilotProvider(DEFAULT_MODELS.copilot),
+      );
+    }
+
     // OpenAI
     if (process.env.OPENAI_API_KEY) {
       this.register(createOpenAIProvider(DEFAULT_MODELS.openai));
     }
 
     // GitHub Models
-    if (process.env.GITHUB_TOKEN) {
+    if (process.env.GITHUB_TOKEN && !process.env.GITHUB_TOKEN.startsWith("ghu_")) {
       this.register(
         createGitHubModelsProvider(DEFAULT_MODELS.github),
       );
@@ -94,6 +103,7 @@ export class LLMRegistry {
     // First available in preference order
     const order: LLMProviderType[] = [
       "anthropic",
+      "copilot",
       "openai",
       "github",
       "custom",
@@ -167,7 +177,7 @@ export class LLMRegistry {
 
     throw new Error(
       `[llm] No LLM provider available for module "${moduleId}". ` +
-        "Set at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN) " +
+        "Set at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, COPILOT_GITHUB_TOKEN, GITHUB_TOKEN) " +
         "or enable MOCK_MODE=1.",
     );
   }
@@ -180,6 +190,8 @@ export class LLMRegistry {
     switch (providerId) {
       case "anthropic":
         return new AnthropicProvider(model);
+      case "copilot":
+        return new CopilotProvider(model);
       case "openai":
         return createOpenAIProvider(model);
       case "github":
@@ -214,6 +226,7 @@ export class LLMRegistry {
     const all: LLMProviderType[] = [
       "anthropic",
       "openai",
+      "copilot",
       "github",
       "custom",
       "mock",

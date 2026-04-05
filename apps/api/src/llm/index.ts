@@ -22,6 +22,7 @@ export {
   createGitHubModelsProvider,
   createCustomProvider,
 } from "./openai-compat.js";
+export { CopilotProvider, isCopilotAvailable } from "./copilot.js";
 export { MockProvider } from "./mock.js";
 export {
   LLMRegistry,
