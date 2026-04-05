@@ -74,12 +74,18 @@ export class OpenAICompatProvider implements LLMProvider {
         }
         messages.push({ role: "user", content: prompt });
 
+        // Newer models (GPT-5.x, o3, o4) use max_completion_tokens instead of max_tokens
+        const usesNewTokenParam = /^(gpt-5|o[34])/.test(this.model);
+        const tokenLimit = options?.maxTokens ?? 4096;
+
         const response = await Promise.race([
           this.client.chat.completions.create({
             model: this.model,
             messages,
             temperature: options?.temperature ?? 0.3,
-            max_tokens: options?.maxTokens ?? 4096,
+            ...(usesNewTokenParam
+              ? { max_completion_tokens: tokenLimit }
+              : { max_tokens: tokenLimit }),
           }),
           timeout(DEFAULT_TIMEOUT_MS),
         ]);
