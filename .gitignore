@@ -35,3 +35,4 @@ pnpm-debug.log*
 .planning/
 apps/api/.data/
 data/
+.data/
