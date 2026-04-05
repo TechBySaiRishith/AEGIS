@@ -1,5 +1,6 @@
 import "dotenv/config";
 import type { LLMProvider } from "@aegis/shared";
+import { isCopilotAvailable } from "./llm/copilot.js";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export type Config = typeof config;
 export function availableProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
   if (config.anthropicApiKey) providers.push("anthropic");
+  if (isCopilotAvailable()) providers.push("copilot");
   if (config.openaiApiKey) providers.push("openai");
   if (config.githubToken) providers.push("github");
   if (config.customLlmBaseUrl && config.customLlmApiKey) providers.push("custom");
@@ -65,12 +67,13 @@ export function validateConfig(): void {
     config.anthropicApiKey ||
     config.openaiApiKey ||
     config.githubToken ||
-    (config.customLlmBaseUrl && config.customLlmApiKey);
+    (config.customLlmBaseUrl && config.customLlmApiKey) ||
+    isCopilotAvailable();
 
   if (!hasKey && !config.mockMode) {
     throw new Error(
       "AEGIS startup failed: no LLM API key configured and MOCK_MODE is not enabled.\n" +
-        "Set at least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, " +
+        "Set at least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, COPILOT_GITHUB_TOKEN, " +
         "CUSTOM_LLM_BASE_URL+CUSTOM_LLM_API_KEY, or set MOCK_MODE=1."
     );
   }
