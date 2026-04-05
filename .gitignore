@@ -33,3 +33,5 @@ pnpm-debug.log*
 
 # Planning artifacts
 .planning/
+apps/api/.data/
+data/
