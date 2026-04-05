@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* ─── AEGIS Design Tokens ─────────────────────────────────── */
+
+:root {
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-raised: #27272a;
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --accent: #22d3ee;
+  --accent-dim: #0891b2;
+  --border: #3f3f46;
+  --border-subtle: #27272a;
+
+  /* Verdict */
+  --approve: #22c55e;
+  --approve-bg: rgba(34, 197, 94, 0.1);
+  --review: #f59e0b;
+  --review-bg: rgba(245, 158, 11, 0.1);
+  --reject: #ef4444;
+  --reject-bg: rgba(239, 68, 68, 0.1);
+
+  /* Severity */
+  --critical: #ef4444;
+  --high: #f59e0b;
+  --medium: #3b82f6;
+  --low: #6b7280;
+  --info: #8b5cf6;
+
+  /* Module accents */
+  --sentinel: #22d3ee;
+  --watchdog: #f59e0b;
+  --guardian: #a78bfa;
+}
+
+/* ─── Base ────────────────────────────────────────────────── */
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Utilities ───────────────────────────────────────────── */
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

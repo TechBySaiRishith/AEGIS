@@ -19,6 +19,8 @@ import {
 import { getLLMRegistry } from "../llm/registry.js";
 import { handleIntake } from "../intake/handler.js";
 import { SentinelAnalyzer, WatchdogAnalyzer, GuardianAnalyzer } from "../experts/index.js";
+import { generateReport, renderHTMLReport } from "../reports/index.js";
+import type { EvaluationData } from "../reports/index.js";
 
 const evaluate = new Hono();
 
@@ -349,6 +351,71 @@ evaluate.get("/:id/events", (c) => {
       if (listeners.size === 0) eventListeners.delete(id);
     }
   });
+});
+
+// ─── GET /api/evaluations/:id/report — JSON report ─────────
+
+evaluate.get("/:id/report", (c) => {
+  const entry = getEvaluation(c.req.param("id"));
+  if (!entry) return c.json({ error: "Evaluation not found" }, 404);
+
+  if (entry.status !== "completed") {
+    return c.json(
+      { error: `Evaluation is not completed (status: ${entry.status}). Report generation requires a completed evaluation.` },
+      400,
+    );
+  }
+
+  try {
+    const evalData: EvaluationData = {
+      id: entry.id,
+      applicationName: entry.applicationName ?? entry.sourceUrl ?? "Unknown application",
+      applicationDescription: entry.applicationDescription ?? null,
+      applicationProfile: entry.applicationProfile as { framework?: string } | null,
+      assessments: entry.assessments,
+      verdict: entry.verdict,
+      completedAt: entry.completedAt ?? null,
+    };
+
+    const report = generateReport(evalData);
+    return c.json(report);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: `Report generation failed: ${message}` }, 500);
+  }
+});
+
+// ─── GET /api/evaluations/:id/report/html — HTML report ────
+
+evaluate.get("/:id/report/html", (c) => {
+  const entry = getEvaluation(c.req.param("id"));
+  if (!entry) return c.json({ error: "Evaluation not found" }, 404);
+
+  if (entry.status !== "completed") {
+    return c.json(
+      { error: `Evaluation is not completed (status: ${entry.status}). Report generation requires a completed evaluation.` },
+      400,
+    );
+  }
+
+  try {
+    const evalData: EvaluationData = {
+      id: entry.id,
+      applicationName: entry.applicationName ?? entry.sourceUrl ?? "Unknown application",
+      applicationDescription: entry.applicationDescription ?? null,
+      applicationProfile: entry.applicationProfile as { framework?: string } | null,
+      assessments: entry.assessments,
+      verdict: entry.verdict,
+      completedAt: entry.completedAt ?? null,
+    };
+
+    const report = generateReport(evalData);
+    const html = renderHTMLReport(report);
+    return c.html(html);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: `Report generation failed: ${message}` }, 500);
+  }
 });
 
 export { evaluate };
