@@ -7,6 +7,9 @@ import type {
   ModuleReportSection,
   Severity,
   CouncilVerdict,
+  RiskSummaryEntry,
+  ActionableRecommendation,
+  CouncilDeliberation,
 } from "@aegis/shared";
 
 // ─── Module display names ──────────────────────────────────
@@ -38,10 +41,7 @@ function countBySeverity(findings: Finding[]): Record<string, number> {
 }
 
 function topSeverityLabel(findings: Finding[]): string {
-  const sorted = [...findings].sort(
-    (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
-  );
-  if (sorted.length === 0) return "no issues";
+  if (findings.length === 0) return "no issues";
 
   const counts = countBySeverity(findings);
   const parts: string[] = [];
@@ -55,25 +55,92 @@ function topSeverityLabel(findings: Finding[]): string {
   return parts.join(", ");
 }
 
-function verdictParagraph(verdict: string, appName: string): string {
+/** Extract application-specific details from the profile and assessments. */
+function extractAppContext(
+  appName: string,
+  appDescription: string,
+  framework: string,
+  assessments: ExpertAssessment[],
+): {
+  techStack: string;
+  aiModels: string[];
+  securityGaps: string[];
+  dataPatterns: string[];
+} {
+  const techStack = framework || "unknown framework";
+  const aiModels: string[] = [];
+  const securityGaps: string[] = [];
+  const dataPatterns: string[] = [];
+
+  for (const a of assessments) {
+    for (const f of a.findings) {
+      // Extract AI model references from findings
+      const modelMatches = f.description.match(/\b(gpt-[34][a-z0-9.-]*|claude[a-z0-9.-]*|whisper[a-z0-9.-]*|dall-e[a-z0-9.-]*|gemini[a-z0-9.-]*)\b/gi);
+      if (modelMatches) aiModels.push(...modelMatches);
+
+      // Extract security-relevant patterns
+      if (f.category.toLowerCase().includes("auth") || f.description.toLowerCase().includes("authentication")) {
+        securityGaps.push(f.title);
+      }
+      if (f.category.toLowerCase().includes("upload") || f.description.toLowerCase().includes("file upload")) {
+        dataPatterns.push(f.title);
+      }
+    }
+
+    // Also scan summaries for technology references
+    const summaryModelMatches = a.summary.match(/\b(gpt-[34][a-z0-9.-]*|claude[a-z0-9.-]*|whisper[a-z0-9.-]*|Flask|Django|Express|FastAPI|Next\.js)\b/gi);
+    if (summaryModelMatches) {
+      for (const m of summaryModelMatches) {
+        if (!aiModels.includes(m) && !["Flask", "Django", "Express", "FastAPI", "Next.js"].includes(m)) {
+          aiModels.push(m);
+        }
+      }
+    }
+  }
+
+  return {
+    techStack,
+    aiModels: [...new Set(aiModels)],
+    securityGaps: [...new Set(securityGaps)],
+    dataPatterns: [...new Set(dataPatterns)],
+  };
+}
+
+function verdictParagraph(
+  verdict: string,
+  appName: string,
+  appContext: ReturnType<typeof extractAppContext>,
+): string {
+  const techDesc = appContext.techStack !== "unknown framework"
+    ? `a ${appContext.techStack} application${appContext.aiModels.length > 0 ? ` integrating ${appContext.aiModels.join(", ")}` : ""}`
+    : "this application";
+
   switch (verdict) {
     case "APPROVE":
       return (
-        `Based on the combined analysis, ${appName} meets the safety thresholds required for deployment. ` +
-        `No critical or high-severity issues were identified that would block release. ` +
+        `Based on the combined analysis, ${appName} (${techDesc}) meets the safety thresholds ` +
+        `required for deployment. No critical or high-severity issues were identified that would block release. ` +
         `The Council recommends approval, though any medium-severity findings should be addressed in subsequent iterations.`
       );
     case "REVIEW":
       return (
-        `The evaluation identified concerns that require manual review before ${appName} can be approved for deployment. ` +
-        `While no showstopper defects were found, high-severity issues and risk patterns warrant closer inspection ` +
-        `by the safety team before a final determination is made.`
+        `The evaluation identified concerns in ${appName} (${techDesc}) that require manual review ` +
+        `before deployment can proceed. ` +
+        (appContext.securityGaps.length > 0
+          ? `Notable security gaps include: ${appContext.securityGaps.slice(0, 3).join(", ")}. `
+          : "") +
+        `The safety team should inspect high-severity findings and confirm that mitigations are in place ` +
+        `before a final determination is made.`
       );
     case "REJECT":
       return (
-        `The evaluation identified critical safety concerns in ${appName} that preclude deployment in its current state. ` +
-        `One or more expert modules flagged issues at the critical severity level. ` +
-        `The application must undergo remediation and re-evaluation before it can be considered for approval.`
+        `The evaluation identified critical safety concerns in ${appName} (${techDesc}) ` +
+        `that preclude deployment in its current state. ` +
+        (appContext.securityGaps.length > 0
+          ? `Key areas of concern: ${appContext.securityGaps.slice(0, 3).join(", ")}. `
+          : "") +
+        `The application must undergo remediation addressing the critical and high-severity findings ` +
+        `documented below, then be re-evaluated before it can be considered for approval.`
       );
     default:
       return `The evaluation completed with verdict: ${verdict}.`;
@@ -96,6 +163,87 @@ function buildModuleSection(assessment: ExpertAssessment): ModuleReportSection {
   };
 }
 
+// ─── Build risk summary table ──────────────────────────────
+
+function buildRiskSummary(assessments: ExpertAssessment[]): RiskSummaryEntry[] {
+  return assessments.map((a) => {
+    const counts = countBySeverity(a.findings);
+    const sortedFindings = [...a.findings].sort(
+      (x, y) => SEVERITY_ORDER[x.severity] - SEVERITY_ORDER[y.severity],
+    );
+    return {
+      module: a.moduleId,
+      moduleName: a.moduleName,
+      score: a.score,
+      riskLevel: a.riskLevel,
+      criticalCount: counts["critical"] ?? 0,
+      highCount: counts["high"] ?? 0,
+      mediumCount: counts["medium"] ?? 0,
+      lowCount: counts["low"] ?? 0,
+      infoCount: counts["info"] ?? 0,
+      topFinding: sortedFindings.length > 0 ? sortedFindings[0].title : null,
+    };
+  });
+}
+
+// ─── Build actionable recommendations ──────────────────────
+
+function buildRecommendations(
+  assessments: ExpertAssessment[],
+  appContext: ReturnType<typeof extractAppContext>,
+): ActionableRecommendation[] {
+  const recommendations: ActionableRecommendation[] = [];
+
+  for (const a of assessments) {
+    const criticals = a.findings.filter((f) => f.severity === "critical");
+    const highs = a.findings.filter((f) => f.severity === "high");
+    const mediums = a.findings.filter((f) => f.severity === "medium");
+
+    // Critical findings → immediate action
+    for (const f of criticals) {
+      recommendations.push({
+        priority: "immediate",
+        title: f.title,
+        description: f.remediation
+          ? `${f.description} Recommended fix: ${f.remediation}`
+          : f.description,
+        relatedFindings: [f.id],
+        module: a.moduleId,
+      });
+    }
+
+    // High findings → short-term action
+    for (const f of highs) {
+      recommendations.push({
+        priority: "short-term",
+        title: f.title,
+        description: f.remediation
+          ? `${f.description} Recommended fix: ${f.remediation}`
+          : f.description,
+        relatedFindings: [f.id],
+        module: a.moduleId,
+      });
+    }
+
+    // Group medium findings as long-term
+    if (mediums.length > 0) {
+      recommendations.push({
+        priority: "long-term",
+        title: `Address ${mediums.length} medium-severity finding(s) from ${a.moduleName}`,
+        description: mediums.map((f) => `[${f.id}] ${f.title}`).join("; "),
+        relatedFindings: mediums.map((f) => f.id),
+        module: a.moduleId,
+      });
+    }
+  }
+
+  // Sort: immediate first, then short-term, then long-term
+  const priorityOrder = { immediate: 0, "short-term": 1, "long-term": 2 };
+  recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+  return recommendations;
+}
+
 // ─── Build executive summary ───────────────────────────────
 
 function buildExecutiveSummary(
@@ -106,11 +254,20 @@ function buildExecutiveSummary(
   assessments: ExpertAssessment[],
   council: CouncilVerdict,
 ): string {
+  const appContext = extractAppContext(appName, appDescription, framework, assessments);
   const lines: string[] = [];
 
-  // Opening paragraph
+  // Opening paragraph — application-specific
+  const techDesc = appContext.techStack !== "unknown framework"
+    ? `a ${appContext.techStack} application`
+    : "a software application";
+  const aiDesc = appContext.aiModels.length > 0
+    ? ` integrating ${appContext.aiModels.join(", ")}`
+    : "";
   lines.push(
-    `AEGIS evaluated ${appName}, a ${framework || "software"} application, through three independent expert modules.`,
+    `AEGIS evaluated "${appName}", ${techDesc}${aiDesc}, ` +
+    `through three independent expert modules: Sentinel (code security), Watchdog (LLM safety), ` +
+    `and Guardian (governance compliance).`,
   );
   if (appDescription) {
     lines.push(appDescription);
@@ -118,12 +275,12 @@ function buildExecutiveSummary(
 
   lines.push("");
 
-  // Verdict paragraph
-  lines.push(verdictParagraph(verdict, appName));
+  // Verdict paragraph — application-specific
+  lines.push(verdictParagraph(verdict, appName, appContext));
 
   lines.push("");
 
-  // Per-module breakdown
+  // Per-module breakdown with finding citations
   for (const id of ["sentinel", "watchdog", "guardian"] as ExpertModuleId[]) {
     const a = assessments.find((x) => x.moduleId === id);
     if (!a) continue;
@@ -131,15 +288,18 @@ function buildExecutiveSummary(
     const label = MODULE_LABELS[id];
     if (a.status === "failed") {
       lines.push(
-        `${label.name} (${label.focus}) failed to complete its analysis${a.error ? `: ${a.error}` : "."}`,
+        `• ${label.name} (${label.focus}) failed to complete its analysis${a.error ? `: ${a.error}` : "."}`,
       );
     } else {
       const findingsSummary =
         a.findings.length > 0
           ? `identifying ${a.findings.length} finding(s) (${topSeverityLabel(a.findings)})`
           : "identifying no findings";
+      const topFinding = a.findings.length > 0
+        ? `. Top concern: "${a.findings.sort((x, y) => SEVERITY_ORDER[x.severity] - SEVERITY_ORDER[y.severity])[0].title}"`
+        : "";
       lines.push(
-        `${label.name} (${label.focus}) scored the application ${a.score}/100, ${findingsSummary}.`,
+        `• ${label.name} (${label.focus}) scored ${a.score}/100, ${findingsSummary}${topFinding}.`,
       );
     }
   }
@@ -149,12 +309,24 @@ function buildExecutiveSummary(
   if (conflicts.length > 0) {
     lines.push("");
     const details = conflicts.map((c) => c.description).join(" ");
-    lines.push(`The Council noted disagreements between modules: ${details}`);
+    lines.push(`The Council noted ${conflicts.length} disagreement(s) between modules: ${details}`);
+  }
+
+  // Corroborations
+  const agreements = council.critiques.filter((c) => c.type === "agreement");
+  if (agreements.length > 0) {
+    lines.push("");
+    lines.push(
+      `${agreements.length} area(s) of agreement were identified across modules, ` +
+      `strengthening confidence in the assessment.`,
+    );
   }
 
   // Overall recommendation
   lines.push("");
-  lines.push(`Overall recommendation: ${verdict}.`);
+  lines.push(
+    `Council verdict: ${verdict} (${(council.confidence * 100).toFixed(0)}% confidence).`,
+  );
 
   return lines.join("\n");
 }
@@ -164,21 +336,66 @@ function buildExecutiveSummary(
 function buildCouncilAnalysis(council: CouncilVerdict): string {
   const sections: string[] = [];
 
-  sections.push("Council Synthesis");
-  sections.push("─".repeat(40));
+  sections.push("Council Synthesis — Arbitration Report");
+  sections.push("═".repeat(50));
   sections.push("");
-  sections.push(`Verdict: ${council.verdict} (confidence: ${(council.confidence * 100).toFixed(0)}%)`);
+  sections.push(`Final Verdict: ${council.verdict}`);
+  sections.push(`Confidence: ${(council.confidence * 100).toFixed(0)}%`);
+  sections.push(`Algorithmic Verdict: ${council.algorithmicVerdict}`);
+  sections.push(`LLM Enhanced: ${council.llmEnhanced ? "Yes" : "No"}`);
   sections.push("");
-  sections.push("Reasoning:");
+
+  // Arbitration process
+  if (council.deliberation?.arbitrationProcess) {
+    sections.push("─── Arbitration Process ───");
+    sections.push(council.deliberation.arbitrationProcess);
+    sections.push("");
+  }
+
+  // Reasoning
+  sections.push("─── Detailed Reasoning ───");
   sections.push(council.reasoning);
 
+  // Cross-module observations
   if (council.critiques.length > 0) {
     sections.push("");
-    sections.push("Cross-Module Observations:");
+    sections.push("─── Cross-Module Observations ───");
     for (const c of council.critiques) {
       const typeLabel =
-        c.type === "conflict" ? "⚠ Disagreement" : c.type === "agreement" ? "✓ Agreement" : "+ Addition";
-      sections.push(`  ${typeLabel} (${c.fromModule} → ${c.aboutModule}): ${c.description}`);
+        c.type === "conflict"
+          ? "⚠ DISAGREEMENT"
+          : c.type === "agreement"
+            ? "✓ CORROBORATION"
+            : "+ GAP IDENTIFIED";
+      sections.push(`  ${typeLabel} (${c.fromModule} ↔ ${c.aboutModule}):`);
+      sections.push(`    ${c.description}`);
+    }
+  }
+
+  // Confidence factors
+  if (council.deliberation?.confidenceFactors && council.deliberation.confidenceFactors.length > 0) {
+    sections.push("");
+    sections.push("─── Confidence Calibration ───");
+    for (const f of council.deliberation.confidenceFactors) {
+      sections.push(`  • ${f}`);
+    }
+  }
+
+  // Corroborations detail
+  if (council.deliberation?.corroborations && council.deliberation.corroborations.length > 0) {
+    sections.push("");
+    sections.push("─── Cross-Module Corroborations ───");
+    for (const c of council.deliberation.corroborations) {
+      sections.push(`  ✓ ${c}`);
+    }
+  }
+
+  // Disagreements detail
+  if (council.deliberation?.disagreements && council.deliberation.disagreements.length > 0) {
+    sections.push("");
+    sections.push("─── Disagreement Resolution ───");
+    for (const d of council.deliberation.disagreements) {
+      sections.push(`  ⚠ ${d}`);
     }
   }
 
@@ -188,6 +405,25 @@ function buildCouncilAnalysis(council: CouncilVerdict): string {
   }
 
   return sections.join("\n");
+}
+
+// ─── Build council deliberation ────────────────────────────
+
+function buildDeliberation(council: CouncilVerdict): CouncilDeliberation {
+  if (council.deliberation) return council.deliberation;
+
+  // Fallback for legacy verdicts without deliberation
+  return {
+    arbitrationProcess: "Legacy verdict — no structured arbitration trace available.",
+    crossReferences: [],
+    disagreements: council.critiques
+      .filter((c) => c.type === "conflict")
+      .map((c) => `${c.fromModule} ↔ ${c.aboutModule}: ${c.description}`),
+    corroborations: council.critiques
+      .filter((c) => c.type === "agreement")
+      .map((c) => `${c.fromModule} ↔ ${c.aboutModule}: ${c.description}`),
+    confidenceFactors: [`Confidence: ${(council.confidence * 100).toFixed(0)}%`],
+  };
 }
 
 // ─── Main entry point ──────────────────────────────────────
@@ -204,7 +440,6 @@ export interface AssessmentRow {
   model: string | null;
   completedAt: string | null;
   error: string | null;
-  // Runtime fields that may or may not be present
   moduleName?: string;
   framework?: string;
 }
@@ -277,9 +512,12 @@ function normaliseVerdict(row: VerdictRow): CouncilVerdict {
 /**
  * Generate a structured report from a completed evaluation.
  *
- * The evaluation must have at least one assessment and a council verdict.
- * All data is derived from the structured assessment/verdict data — no LLM
- * calls are made during report generation.
+ * The report includes:
+ *  - Executive summary (application-specific, not boilerplate)
+ *  - Risk summary table per module
+ *  - Per-module findings sorted by severity
+ *  - Council deliberation with full arbitration trace
+ *  - Prioritized actionable recommendations
  */
 export function generateReport(evaluation: EvaluationData): EvaluationReport {
   const {
@@ -304,8 +542,16 @@ export function generateReport(evaluation: EvaluationData): EvaluationReport {
     moduleSummaries[a.moduleId] = buildModuleSection(a);
   }
 
-  // Executive summary
+  // Application context for VeriMedia-specific output
   const framework = applicationProfile?.framework ?? "";
+  const appContext = extractAppContext(
+    applicationName,
+    applicationDescription ?? "",
+    framework,
+    assessments,
+  );
+
+  // Executive summary
   const executiveSummary = buildExecutiveSummary(
     applicationName,
     applicationDescription ?? "",
@@ -318,6 +564,15 @@ export function generateReport(evaluation: EvaluationData): EvaluationReport {
   // Council analysis narrative
   const councilAnalysis = buildCouncilAnalysis(council);
 
+  // Risk summary table
+  const riskSummary = buildRiskSummary(assessments);
+
+  // Actionable recommendations
+  const recommendations = buildRecommendations(assessments, appContext);
+
+  // Council deliberation
+  const councilDeliberation = buildDeliberation(council);
+
   return {
     id: `rpt_${nanoid(12)}`,
     evaluationId,
@@ -328,6 +583,9 @@ export function generateReport(evaluation: EvaluationData): EvaluationReport {
     applicationDescription: applicationDescription ?? "",
     moduleSummaries,
     councilAnalysis,
+    riskSummary,
+    recommendations,
+    councilDeliberation,
     generatedAt: new Date().toISOString(),
   };
 }

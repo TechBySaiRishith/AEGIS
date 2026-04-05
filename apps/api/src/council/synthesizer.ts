@@ -3,6 +3,7 @@ import type {
   ExpertModuleId,
   CouncilVerdict,
   CritiquePoint,
+  CouncilDeliberation,
 } from "@aegis/shared";
 import type { LLMProvider } from "../llm/provider.js";
 import { computeAlgorithmicVerdict } from "./algorithmic.js";
@@ -50,7 +51,8 @@ function detectDisagreements(
           description:
             `Score disagreement: ${higher.moduleName} scored ${higher.score}/100 ` +
             `while ${lower.moduleName} scored ${lower.score}/100 ` +
-            `(Δ${diff}). This divergence requires attention.`,
+            `(Δ${diff}). The Council defers to the stricter assessment ` +
+            `from ${lower.moduleName} to uphold safety margins.`,
         });
       }
     }
@@ -64,7 +66,7 @@ function detectDisagreements(
 /**
  * Main Council synthesis pipeline.
  *
- * 1. Always computes an algorithmic verdict (no LLM required).
+ * 1. Always computes an algorithmic verdict via the 5-pass arbitration process.
  * 2. If an LLM is available, runs a critique round and enhances reasoning.
  * 3. If the LLM fails, gracefully falls back to the algorithmic-only result.
  *
@@ -75,7 +77,7 @@ export async function synthesize(
   assessments: ExpertAssessment[],
   llm?: LLMProvider,
 ): Promise<CouncilVerdict> {
-  // ── Step 1: Algorithmic verdict (always runs) ──────────────
+  // ── Step 1: Algorithmic verdict with full arbitration ──────
   const algorithmic = computeAlgorithmicVerdict(assessments);
 
   // ── Step 2: Per-module summary ─────────────────────────────
@@ -88,6 +90,7 @@ export async function synthesize(
   let critiques: CritiquePoint[] = [...scoreDisagreements];
   let reasoning = algorithmic.reasoning;
   let llmEnhanced = false;
+  let deliberation: CouncilDeliberation = algorithmic.deliberation;
 
   if (llm) {
     try {
@@ -108,10 +111,9 @@ export async function synthesize(
 
       // Enhance reasoning with LLM narrative
       if (critiqueResult.narrative) {
-        reasoning = `${algorithmic.reasoning}\n\n--- Council Narrative ---\n${critiqueResult.narrative}`;
+        reasoning = `${algorithmic.reasoning}\n\n--- LLM-Enhanced Council Narrative ---\n${critiqueResult.narrative}`;
         llmEnhanced = true;
       } else {
-        // If critique succeeded but no narrative, generate one
         try {
           const synthesisResponse = await llm.complete(
             buildSynthesisPrompt(assessments, critiques),
@@ -121,14 +123,45 @@ export async function synthesize(
               maxTokens: 1024,
             },
           );
-          reasoning = `${algorithmic.reasoning}\n\n--- Council Narrative ---\n${synthesisResponse.content}`;
+          reasoning = `${algorithmic.reasoning}\n\n--- LLM-Enhanced Council Narrative ---\n${synthesisResponse.content}`;
           llmEnhanced = true;
         } catch {
           // Synthesis prompt failed — keep algorithmic reasoning only
         }
       }
+
+      // Merge LLM-discovered corroborations/disagreements into deliberation
+      const llmAgreements = critiques.filter((c) => c.type === "agreement");
+      const llmConflicts = critiques.filter((c) => c.type === "conflict");
+      const llmAdditions = critiques.filter((c) => c.type === "addition");
+
+      deliberation = {
+        ...deliberation,
+        corroborations: [
+          ...deliberation.corroborations,
+          ...llmAgreements.map(
+            (c) => `[LLM] ${c.fromModule} ↔ ${c.aboutModule}: ${c.description}`,
+          ),
+        ],
+        disagreements: [
+          ...deliberation.disagreements,
+          ...llmConflicts
+            .filter(
+              (c) =>
+                !scoreDisagreements.some(
+                  (d) => d.fromModule === c.fromModule && d.aboutModule === c.aboutModule,
+                ),
+            )
+            .map((c) => `[LLM] ${c.fromModule} ↔ ${c.aboutModule}: ${c.description}`),
+        ],
+        crossReferences: [
+          ...deliberation.crossReferences,
+          ...llmAdditions.map(
+            (c) => `[LLM gap] ${c.fromModule} → ${c.aboutModule}: ${c.description}`,
+          ),
+        ],
+      };
     } catch (error) {
-      // Critique round failed entirely — fall back to algorithmic-only
       console.warn(
         "[council] LLM critique round failed, using algorithmic verdict only:",
         error instanceof Error ? error.message : error,
@@ -144,5 +177,6 @@ export async function synthesize(
     perModuleSummary,
     algorithmicVerdict: algorithmic.verdict,
     llmEnhanced,
+    deliberation,
   };
 }

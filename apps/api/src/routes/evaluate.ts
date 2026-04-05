@@ -6,7 +6,6 @@ import type {
   EvaluationStatus,
   ExpertModuleId,
   ExpertAssessment,
-  Verdict,
 } from "@aegis/shared";
 import {
   createEvaluation,
@@ -20,6 +19,8 @@ import { getLLMRegistry } from "../llm/registry.js";
 import { handleIntake } from "../intake/handler.js";
 import { SentinelAnalyzer, WatchdogAnalyzer, GuardianAnalyzer } from "../experts/index.js";
 import { parseModelSpec } from "../llm/provider.js";
+import type { LLMProvider } from "../llm/provider.js";
+import { synthesize } from "../council/index.js";
 import { generateReport, renderHTMLReport } from "../reports/index.js";
 import type { EvaluationData } from "../reports/index.js";
 
@@ -60,51 +61,6 @@ function pushEvent(evaluationId: string, type: string, data: Record<string, unkn
       cb(event);
     }
   }
-}
-
-// ─── Algorithmic verdict (no LLM required) ─────────────────
-
-function computeAlgorithmicVerdict(
-  assessments: ExpertAssessment[],
-): { verdict: Verdict; confidence: number; reasoning: string } {
-  const completed = assessments.filter((a) => a.status === "completed");
-  if (completed.length === 0) {
-    return { verdict: "REJECT", confidence: 0.3, reasoning: "No expert modules completed successfully." };
-  }
-
-  const avgScore = completed.reduce((sum, a) => sum + a.score, 0) / completed.length;
-  const hasCritical = completed.some((a) => a.riskLevel === "critical");
-  const hasHigh = completed.some((a) => a.riskLevel === "high");
-  const failedModules = assessments.filter((a) => a.status === "failed").length;
-
-  let verdict: Verdict;
-  let confidence: number;
-  let reasoning: string;
-
-  if (hasCritical || avgScore < 30) {
-    verdict = "REJECT";
-    confidence = Math.min(0.95, 0.7 + (completed.length / 3) * 0.25);
-    reasoning = hasCritical
-      ? "Critical risk level detected by one or more expert modules."
-      : `Average safety score (${avgScore.toFixed(0)}) is below the minimum threshold.`;
-  } else if (hasHigh || avgScore < 60) {
-    verdict = "REVIEW";
-    confidence = Math.min(0.9, 0.6 + (completed.length / 3) * 0.2);
-    reasoning = hasHigh
-      ? "High risk level detected — manual review recommended before deployment."
-      : `Average safety score (${avgScore.toFixed(0)}) indicates significant concerns requiring review.`;
-  } else {
-    verdict = "APPROVE";
-    confidence = Math.min(0.9, 0.5 + (completed.length / 3) * 0.3);
-    reasoning = `Average safety score (${avgScore.toFixed(0)}) is within acceptable range across ${completed.length} module(s).`;
-  }
-
-  if (failedModules > 0) {
-    confidence = Math.max(0.2, confidence - 0.15 * failedModules);
-    reasoning += ` Note: ${failedModules} module(s) failed to complete.`;
-  }
-
-  return { verdict, confidence, reasoning };
 }
 
 // ─── Background evaluation pipeline ────────────────────────
@@ -235,26 +191,43 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
       return failedAssessment;
     });
 
-    // 3. Synthesise verdict (algorithmic for now — Council module will enhance later)
+    // 3. Council synthesis — full arbitration pipeline
     updateEvaluationStatus(evaluationId, "synthesizing");
-    pushEvent(evaluationId, "status", { status: "synthesizing", message: "Computing verdict…" });
+    pushEvent(evaluationId, "status", { status: "synthesizing", message: "Council arbitrating verdict across all expert assessments…" });
 
-    const { verdict, confidence, reasoning } = computeAlgorithmicVerdict(assessments);
-
-    const perModuleSummary: Record<string, string> = {};
-    for (const a of assessments) {
-      perModuleSummary[a.moduleId] = a.summary || `${a.moduleId}: ${a.status}`;
+    // Resolve synthesizer LLM (optional — council falls back to algorithmic-only)
+    let synthesizerLLM: LLMProvider | undefined;
+    try {
+      const synthModelSpec = request.models?.synthesizer;
+      if (synthModelSpec) {
+        const parsed = parseModelSpec(synthModelSpec);
+        if (parsed) {
+          const base = registry.get(parsed.provider);
+          if (base) {
+            synthesizerLLM = base.model === parsed.model
+              ? base
+              : registry.createProviderWithModel(parsed.provider, parsed.model);
+          }
+        }
+      }
+      if (!synthesizerLLM) {
+        synthesizerLLM = registry.getDefault();
+      }
+    } catch {
+      // No LLM available — council will use algorithmic-only path
     }
+
+    const council = await synthesize(assessments, synthesizerLLM);
 
     saveVerdict({
       evaluationId,
-      verdict,
-      confidence,
-      reasoning,
-      critiques: [],
-      perModuleSummary: perModuleSummary as Record<ExpertModuleId, string>,
-      algorithmicVerdict: verdict,
-      llmEnhanced: false,
+      verdict: council.verdict,
+      confidence: council.confidence,
+      reasoning: council.reasoning,
+      critiques: council.critiques,
+      perModuleSummary: council.perModuleSummary,
+      algorithmicVerdict: council.algorithmicVerdict,
+      llmEnhanced: council.llmEnhanced,
     });
 
     // 4. Done
@@ -262,7 +235,12 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
       completedAt: new Date().toISOString(),
     });
 
-    pushEvent(evaluationId, "verdict", { verdict, confidence, reasoning });
+    pushEvent(evaluationId, "verdict", {
+      verdict: council.verdict,
+      confidence: council.confidence,
+      reasoning: council.reasoning,
+      arbitrationProcess: council.deliberation?.arbitrationProcess ?? "algorithmic",
+    });
     pushEvent(evaluationId, "complete", { message: "Evaluation finished." });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
