@@ -193,6 +193,8 @@ export interface EvaluateRequest {
   inputType: InputType;
   source: string; // URL, file path, or endpoint
   description?: string;
+  /** Per-request model overrides for ablation studies (e.g. { sentinel: "copilot/gpt-5.4" }) */
+  models?: Partial<Record<ExpertModuleId | "synthesizer", string>>;
 }
 
 export interface EvaluateResponse {

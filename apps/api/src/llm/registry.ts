@@ -183,6 +183,14 @@ export class LLMRegistry {
   }
 
   /** Create an ad-hoc provider with a specific model (not cached in registry) */
+  createProviderWithModel(
+    providerId: LLMProviderType,
+    model: string,
+  ): LLMProvider {
+    return this.createWithModel(providerId, model);
+  }
+
+  /** Create an ad-hoc provider with a specific model (not cached in registry) */
   private createWithModel(
     providerId: LLMProviderType,
     model: string,

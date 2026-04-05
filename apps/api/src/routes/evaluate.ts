@@ -19,6 +19,7 @@ import {
 import { getLLMRegistry } from "../llm/registry.js";
 import { handleIntake } from "../intake/handler.js";
 import { SentinelAnalyzer, WatchdogAnalyzer, GuardianAnalyzer } from "../experts/index.js";
+import { parseModelSpec } from "../llm/provider.js";
 import { generateReport, renderHTMLReport } from "../reports/index.js";
 import type { EvaluationData } from "../reports/index.js";
 
@@ -122,6 +123,27 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
     // 2. Run experts in parallel
     const registry = getLLMRegistry();
 
+    // Helper: resolve per-request model override → LLMProvider instance
+    const resolveProvider = (moduleId: ExpertModuleId) => {
+      const modelOverrides = request.models;
+      if (modelOverrides?.[moduleId]) {
+        const spec = modelOverrides[moduleId];
+        const parsed = parseModelSpec(spec);
+        if (parsed) {
+          const base = registry.get(parsed.provider);
+          if (base) {
+            // Use the registry's createWithModel via getProviderForModule fallback
+            // or construct directly through the public API
+            return base.model === parsed.model
+              ? base
+              : registry.createProviderWithModel(parsed.provider, parsed.model);
+          }
+        }
+        console.warn(`[evaluate] Model override "${spec}" for ${moduleId} could not be resolved — using default`);
+      }
+      return registry.getProviderForModule(moduleId);
+    };
+
     const sentinel = new SentinelAnalyzer();
     const watchdog = new WatchdogAnalyzer();
     const guardian = new GuardianAnalyzer();
@@ -130,17 +152,17 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
       {
         id: "sentinel",
         statusKey: "sentinel_running",
-        runner: () => sentinel.analyze(profile, registry.getProviderForModule("sentinel")),
+        runner: () => sentinel.analyze(profile, resolveProvider("sentinel")),
       },
       {
         id: "watchdog",
         statusKey: "watchdog_running",
-        runner: () => watchdog.analyze(profile, registry.getProviderForModule("watchdog")),
+        runner: () => watchdog.analyze(profile, resolveProvider("watchdog")),
       },
       {
         id: "guardian",
         statusKey: "guardian_running",
-        runner: () => guardian.analyze(profile, registry.getProviderForModule("guardian")),
+        runner: () => guardian.analyze(profile, resolveProvider("guardian")),
       },
     ];
 
