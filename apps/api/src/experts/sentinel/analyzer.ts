@@ -15,6 +15,7 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { LLMProvider } from "../../llm/provider.js";
 import type { ExpertModule } from "../base.js";
 import { config } from "../../config.js";
+import { extractJSON } from "../utils.js";
 import { SENTINEL_SYSTEM_PROMPT, buildSentinelUserPrompt } from "./prompts.js";
 
 // ─── Constants ───────────────────────────────────────────────
@@ -251,15 +252,15 @@ function parseFindings(raw: LLMFinding[]): Finding[] {
   });
 }
 
-/** Compute a score from findings when the LLM doesn't provide one */
+/** Compute a score from findings — matches Sentinel's security-domain rubric */
 function computeScore(findings: Finding[]): number {
   let score = 100;
   for (const f of findings) {
     switch (f.severity) {
-      case "critical": score -= 15; break;
-      case "high":     score -= 8;  break;
-      case "medium":   score -= 4;  break;
-      case "low":      score -= 1;  break;
+      case "critical": score -= 20; break;
+      case "high":     score -= 12; break;
+      case "medium":   score -= 5;  break;
+      case "low":      score -= 2;  break;
       // info: no deduction
     }
   }
@@ -274,22 +275,6 @@ function deriveRiskLevel(findings: Finding[]): Severity {
   if (severities.has("medium")) return "medium";
   if (severities.has("low")) return "low";
   return "info";
-}
-
-/** Extract JSON from LLM response that may contain markdown fences */
-function extractJSON(text: string): string {
-  // Try to strip markdown code fences
-  const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-  if (fenceMatch) return fenceMatch[1].trim();
-
-  // Try to find a top-level JSON object
-  const objStart = text.indexOf("{");
-  const objEnd = text.lastIndexOf("}");
-  if (objStart !== -1 && objEnd > objStart) {
-    return text.slice(objStart, objEnd + 1);
-  }
-
-  return text.trim();
 }
 
 // ─── Sentinel Analyzer ───────────────────────────────────────

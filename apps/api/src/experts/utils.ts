@@ -3,6 +3,110 @@ import { join, extname, relative, basename } from "node:path";
 import { existsSync } from "node:fs";
 import type { ApplicationProfile, FileNode } from "@aegis/shared";
 
+// ═══════════════════════════════════════════════════════════════
+// Shared JSON extraction — used by all expert analyzers
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Robustly extract a JSON object from an LLM response.
+ *
+ * Handles all common LLM output quirks:
+ *  1. Markdown code fences (```json ... ```)
+ *  2. Preamble / postamble text surrounding the JSON
+ *  3. Multiple code fence blocks (picks the first with valid JSON)
+ *  4. Trailing commas in arrays/objects
+ *  5. Control characters embedded in string values
+ *  6. Single-line ``` fences and variations
+ */
+export function extractJSON(raw: string): string {
+  // 1. Try all markdown code fence blocks (greedy — pick first valid one)
+  const fencePattern = /```(?:json|JSON)?\s*\n?([\s\S]*?)\n?\s*```/g;
+  let fenceMatch: RegExpExecArray | null;
+  while ((fenceMatch = fencePattern.exec(raw)) !== null) {
+    const candidate = fenceMatch[1].trim();
+    if (candidate.startsWith("{") || candidate.startsWith("[")) {
+      const cleaned = sanitiseJSONString(candidate);
+      if (isValidJSON(cleaned)) return cleaned;
+    }
+  }
+
+  // 2. No valid fenced block — find the outermost { … } pair via brace matching
+  const braceJSON = extractBraceBalanced(raw);
+  if (braceJSON) {
+    const cleaned = sanitiseJSONString(braceJSON);
+    if (isValidJSON(cleaned)) return cleaned;
+  }
+
+  // 3. Fallback: naive slice between first { and last }
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first !== -1 && last > first) {
+    const slice = raw.slice(first, last + 1);
+    const cleaned = sanitiseJSONString(slice);
+    if (isValidJSON(cleaned)) return cleaned;
+    // Even if invalid, return it so the caller sees a parse error with context
+    return cleaned;
+  }
+
+  // 4. Nothing found — return trimmed raw (caller will get a parse error)
+  return raw.trim();
+}
+
+/** Use brace-depth tracking to extract the first top-level JSON object */
+function extractBraceBalanced(text: string): string | null {
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+/** Strip trailing commas before } or ] — common LLM mistake */
+function sanitiseJSONString(json: string): string {
+  // Remove control characters (except newlines/tabs inside strings handled by JSON)
+  let cleaned = json.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // Remove trailing commas before closing braces/brackets
+  cleaned = cleaned.replace(/,\s*([\]}])/g, "$1");
+  return cleaned;
+}
+
+function isValidJSON(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Constants ───────────────────────────────────────────────
 
 const DEFAULT_MAX_TOTAL_CHARS = 50_000;

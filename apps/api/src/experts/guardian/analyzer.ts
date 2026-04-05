@@ -11,6 +11,7 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
+import { extractJSON } from "../utils.js";
 import {
   GUARDIAN_SYSTEM_PROMPT,
   buildGuardianUserPrompt,
@@ -198,12 +199,8 @@ function normaliseRiskLevel(raw: string): Severity {
 }
 
 function parseLLMResponse(raw: string): GuardianLLMResponse {
-  // Strip markdown fences if present
-  let cleaned = raw.trim();
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-  }
-
+  // Use shared extractJSON that handles fences, preamble, trailing commas, etc.
+  const cleaned = extractJSON(raw);
   const parsed = JSON.parse(cleaned) as GuardianLLMResponse;
 
   if (!Array.isArray(parsed.findings)) {
@@ -270,16 +267,23 @@ export class GuardianAnalyzer implements ExpertModule {
       const parsed = parseLLMResponse(llmResponse.content);
       const findings = toFindings(parsed);
 
+      // Use LLM-provided score if valid, otherwise derive from findings
+      const score = typeof parsed.score === "number"
+        ? Math.max(0, Math.min(100, parsed.score))
+        : this.deriveScore(findings);
+
       return {
         moduleId: "guardian",
         moduleName: this.meta.name,
         framework: this.meta.framework,
         status: "completed",
-        score: Math.max(0, Math.min(100, parsed.score)),
-        riskLevel: normaliseRiskLevel(parsed.riskLevel),
+        score,
+        riskLevel: parsed.riskLevel
+          ? normaliseRiskLevel(parsed.riskLevel)
+          : this.deriveRiskLevel(score),
         findings,
-        summary: parsed.summary,
-        recommendation: parsed.recommendation,
+        summary: parsed.summary ?? "Guardian governance analysis complete.",
+        recommendation: parsed.recommendation ?? "Review findings and address governance gaps.",
         completedAt: new Date().toISOString(),
         model: llmResponse.model,
       };
@@ -306,6 +310,28 @@ export class GuardianAnalyzer implements ExpertModule {
   }
 
   // ─── File collection ────────────────────────────────────
+
+  /** Governance-domain deduction-based score fallback */
+  private deriveScore(findings: Finding[]): number {
+    let score = 100;
+    for (const f of findings) {
+      switch (f.severity) {
+        case "critical": score -= 18; break;
+        case "high":     score -= 10; break;
+        case "medium":   score -= 5;  break;
+        case "low":      score -= 2;  break;
+        // info: no deduction
+      }
+    }
+    return Math.max(0, Math.min(100, score));
+  }
+
+  private deriveRiskLevel(score: number): Severity {
+    if (score <= 25) return "critical";
+    if (score <= 50) return "high";
+    if (score <= 75) return "medium";
+    return "low";
+  }
 
   private async collectGovernanceFiles(
     repoRoot: string,

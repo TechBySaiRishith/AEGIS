@@ -11,6 +11,7 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
+import { extractJSON } from "../utils.js";
 import {
   WATCHDOG_SYSTEM_PROMPT,
   buildWatchdogUserPrompt,
@@ -267,21 +268,6 @@ function parseFindings(raw: RawFinding[]): Finding[] {
       framework: f.framework,
     };
   });
-}
-
-function extractJSON(raw: string): string {
-  // Try to find JSON object in the response (handle markdown fences)
-  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  if (fenceMatch) return fenceMatch[1].trim();
-
-  // Try raw JSON
-  const braceStart = raw.indexOf("{");
-  const braceEnd = raw.lastIndexOf("}");
-  if (braceStart !== -1 && braceEnd > braceStart) {
-    return raw.slice(braceStart, braceEnd + 1);
-  }
-
-  return raw;
 }
 
 // ─── Watchdog Analyzer ──────────────────────────────────────
