@@ -1,0 +1,15 @@
+{
+  "name": "aegis",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @aegis/api dev & pnpm --filter @aegis/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
