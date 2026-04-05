@@ -231,7 +231,7 @@ export class CopilotProvider implements LLMProvider {
 
     try {
       const res = await fetch(COPILOT_TOKEN_URL, {
-        method: "POST",
+        method: "GET",
         signal: controller.signal,
         headers: {
           Authorization: `token ${this.githubToken}`,
