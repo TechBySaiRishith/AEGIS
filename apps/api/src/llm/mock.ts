@@ -280,12 +280,14 @@ export class MockProvider implements LLMProvider {
 
   async complete(
     prompt: string,
-    _options?: CompletionOptions,
+    options?: CompletionOptions,
   ): Promise<LLMResponse> {
     // Simulate a small network delay so callers behave realistically
     await new Promise((r) => setTimeout(r, 50));
 
-    const content = this.resolveResponse(prompt);
+    // Combine prompt + systemPrompt for keyword matching
+    const fullText = options?.systemPrompt ? `${options.systemPrompt}\n${prompt}` : prompt;
+    const content = this.resolveResponse(fullText);
 
     return {
       content,

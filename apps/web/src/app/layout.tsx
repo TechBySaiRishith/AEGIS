@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = localFont({
+  src: [
+    { path: "./fonts/Inter-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/Inter-Medium.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/Inter-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/Inter-Bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "AEGIS AI Safety Lab",
