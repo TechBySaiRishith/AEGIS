@@ -11,7 +11,7 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
-import { extractJSON } from "../utils.js";
+import { extractJSON, truncateProfile, capPromptSize } from "../utils.js";
 import {
   GUARDIAN_SYSTEM_PROMPT,
   buildGuardianUserPrompt,
@@ -126,8 +126,8 @@ const DATA_PATH_PATTERNS = [
   /retention/i,
 ];
 
-const MAX_FILE_SIZE = 50_000; // chars — Guardian reads docs which can be long
-const MAX_TOTAL_CHARS = 120_000;
+const MAX_FILE_SIZE = 15_000; // chars per file
+const MAX_TOTAL_CHARS = 30_000;
 const MAX_FILES = 40;
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -253,17 +253,21 @@ export class GuardianAnalyzer implements ExpertModule {
       const repoRoot = path.join(config.dataDir, "repos", app.id);
       const codeSnippets = await this.collectGovernanceFiles(repoRoot, app);
 
-      // 2. Build the prompt
-      const userPrompt = buildGuardianUserPrompt(app, codeSnippets);
+      // 2. Truncate profile to prevent payload overflow
+      const safeApp = truncateProfile(app);
 
-      // 3. Call the LLM
+      // 3. Build the prompt (capped to safe size)
+      const rawPrompt = buildGuardianUserPrompt(safeApp, codeSnippets);
+      const userPrompt = capPromptSize(rawPrompt);
+
+      // 4. Call the LLM
       const llmResponse = await llm.complete(userPrompt, {
         systemPrompt: GUARDIAN_SYSTEM_PROMPT,
         temperature: 0.2,
         maxTokens: 8_000,
       });
 
-      // 4. Parse and convert to findings
+      // 5. Parse and convert to findings
       const parsed = parseLLMResponse(llmResponse.content);
       const findings = toFindings(parsed);
 

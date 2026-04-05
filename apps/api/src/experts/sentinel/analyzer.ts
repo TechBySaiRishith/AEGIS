@@ -15,14 +15,14 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { LLMProvider } from "../../llm/provider.js";
 import type { ExpertModule } from "../base.js";
 import { config } from "../../config.js";
-import { extractJSON } from "../utils.js";
+import { extractJSON, truncateProfile, capPromptSize } from "../utils.js";
 import { SENTINEL_SYSTEM_PROMPT, buildSentinelUserPrompt } from "./prompts.js";
 
 // ─── Constants ───────────────────────────────────────────────
 
 const MODULE_META = EXPERT_MODULES.sentinel;
-const MAX_CODE_BYTES = 80 * 1024; // 80 KB cap to fit LLM context
-const MAX_INDIVIDUAL_FILE = 40_000; // 40 KB per file — allows reading large app.py
+const MAX_CODE_BYTES = 30 * 1024; // 30 KB — leaves room for profile data + excerpts
+const MAX_INDIVIDUAL_FILE = 15_000; // 15 KB per file
 
 /** Extensions we consider analysable source code */
 const SOURCE_EXTENSIONS = new Set([
@@ -296,17 +296,21 @@ export class SentinelAnalyzer implements ExpertModule {
       const repoDir = join(config.dataDir, "repos", app.id);
       const codeSnippets = await readKeyFiles(app, repoDir);
 
-      // 2. Build prompt
-      const userPrompt = buildSentinelUserPrompt(app, codeSnippets);
+      // 2. Truncate profile to prevent payload overflow
+      const safeApp = truncateProfile(app);
 
-      // 3. Call LLM
+      // 3. Build prompt (capped to safe size)
+      const rawPrompt = buildSentinelUserPrompt(safeApp, codeSnippets);
+      const userPrompt = capPromptSize(rawPrompt);
+
+      // 4. Call LLM
       const response = await llm.complete(userPrompt, {
         systemPrompt: SENTINEL_SYSTEM_PROMPT,
         temperature: 0.2,
         maxTokens: 4096,
       });
 
-      // 4. Parse response
+      // 5. Parse response
       const jsonStr = extractJSON(response.content);
       let parsed: LLMAnalysisResult;
       try {
@@ -319,7 +323,7 @@ export class SentinelAnalyzer implements ExpertModule {
         );
       }
 
-      // 5. Convert to typed structures
+      // 6. Convert to typed structures
       const findings = parseFindings(parsed.findings ?? []);
       const score =
         typeof parsed.score === "number"

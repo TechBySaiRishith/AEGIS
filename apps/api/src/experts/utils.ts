@@ -4,6 +4,146 @@ import { existsSync } from "node:fs";
 import type { ApplicationProfile, FileNode } from "@aegis/shared";
 
 // ═══════════════════════════════════════════════════════════════
+// Profile truncation — used by ALL expert analyzers to keep
+// prompt payloads within LLM context limits
+// ═══════════════════════════════════════════════════════════════
+
+const MAX_CODE_EXCERPTS_TOTAL = 12_000;
+const MAX_CODE_EXCERPT_PER_FILE = 6_000;
+const MAX_DESCRIPTION_CHARS = 2_000;
+const MAX_DEPENDENCIES_COUNT = 50;
+const MAX_FILES_IN_STRUCTURE = 100;
+const MAX_ROUTES_COUNT = 30;
+const MAX_ENV_VARS_COUNT = 30;
+const MAX_DATA_HANDLING_COUNT = 20;
+const MAX_PROMPT_CHARS = 48_000; // ~50KB budget minus system prompt headroom
+
+const BINARY_EXTENSIONS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
+  ".woff", ".woff2", ".ttf", ".eot",
+  ".mp3", ".mp4", ".wav", ".avi", ".mov", ".webm",
+  ".zip", ".tar", ".gz", ".bz2", ".7z",
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".pptx",
+  ".pyc", ".pyo", ".class", ".o", ".so", ".dll",
+  ".exe", ".bin", ".dat", ".db", ".sqlite",
+]);
+
+const EXCERPT_PRIORITY_PATTERNS = [
+  /app\.py$/i, /main\.py$/i, /server\.(ts|js)$/i, /index\.(ts|js)$/i,
+  /auth/i, /login/i, /upload/i, /api/i, /route/i, /config/i,
+];
+
+/**
+ * Truncate an ApplicationProfile so that its fields stay within
+ * safe limits for LLM prompt construction.  Returns a shallow copy
+ * with capped strings, arrays, and code excerpts.
+ */
+export function truncateProfile(app: ApplicationProfile): ApplicationProfile {
+  const result = { ...app };
+
+  // 1. Cap description
+  if (result.description && result.description.length > MAX_DESCRIPTION_CHARS) {
+    result.description =
+      result.description.slice(0, MAX_DESCRIPTION_CHARS) + "… [truncated]";
+  }
+
+  // 2. Summarise dependencies
+  if (result.dependencies.length > MAX_DEPENDENCIES_COUNT) {
+    result.dependencies = [
+      ...result.dependencies.slice(0, MAX_DEPENDENCIES_COUNT),
+      `… and ${result.dependencies.length - MAX_DEPENDENCIES_COUNT} more`,
+    ];
+  }
+
+  // 3. Filter file structure — drop binary/asset entries
+  if (result.fileStructure.length > MAX_FILES_IN_STRUCTURE) {
+    const relevant = result.fileStructure.filter((f) => {
+      if (f.type === "directory") return true;
+      const ext = extname(f.path).toLowerCase();
+      return !BINARY_EXTENSIONS.has(ext);
+    });
+    result.fileStructure = relevant.slice(0, MAX_FILES_IN_STRUCTURE);
+  }
+
+  // 4. Truncate code excerpts (the biggest offender for large apps)
+  if (result.codeExcerpts && Object.keys(result.codeExcerpts).length > 0) {
+    result.codeExcerpts = truncateCodeExcerpts(
+      result.codeExcerpts,
+      MAX_CODE_EXCERPTS_TOTAL,
+      MAX_CODE_EXCERPT_PER_FILE,
+    );
+  }
+
+  // 5. Cap routes
+  if (result.routes && result.routes.length > MAX_ROUTES_COUNT) {
+    result.routes = result.routes.slice(0, MAX_ROUTES_COUNT);
+  }
+
+  // 6. Cap environment variables
+  if (
+    result.environmentVariables &&
+    result.environmentVariables.length > MAX_ENV_VARS_COUNT
+  ) {
+    result.environmentVariables = result.environmentVariables.slice(
+      0,
+      MAX_ENV_VARS_COUNT,
+    );
+  }
+
+  // 7. Cap data handling patterns
+  if (result.dataHandling && result.dataHandling.length > MAX_DATA_HANDLING_COUNT) {
+    result.dataHandling = result.dataHandling.slice(0, MAX_DATA_HANDLING_COUNT);
+  }
+
+  return result;
+}
+
+function truncateCodeExcerpts(
+  excerpts: Record<string, string>,
+  maxTotal: number,
+  maxPerFile: number,
+): Record<string, string> {
+  const entries = Object.entries(excerpts);
+  if (entries.length === 0) return excerpts;
+
+  // Prioritise security-relevant files
+  entries.sort((a, b) => {
+    const aScore = EXCERPT_PRIORITY_PATTERNS.filter((p) => p.test(a[0])).length;
+    const bScore = EXCERPT_PRIORITY_PATTERNS.filter((p) => p.test(b[0])).length;
+    return bScore - aScore;
+  });
+
+  const result: Record<string, string> = {};
+  let total = 0;
+
+  for (const [filePath, content] of entries) {
+    if (total >= maxTotal) break;
+    const remaining = maxTotal - total;
+    const cap = Math.min(maxPerFile, remaining);
+    const truncated =
+      content.length > cap
+        ? content.slice(0, cap) + "\n… [truncated]"
+        : content;
+    result[filePath] = truncated;
+    total += truncated.length;
+  }
+
+  return result;
+}
+
+/**
+ * Cap a fully-built user prompt string to stay within the LLM token budget.
+ * Trims from the end (source code section) which is least critical.
+ */
+export function capPromptSize(prompt: string, maxChars = MAX_PROMPT_CHARS): string {
+  if (prompt.length <= maxChars) return prompt;
+  return (
+    prompt.slice(0, maxChars) +
+    "\n\n… [prompt truncated to fit context window — analyse what is provided above]"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Shared JSON extraction — used by all expert analyzers
 // ═══════════════════════════════════════════════════════════════
 

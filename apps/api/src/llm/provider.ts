@@ -45,9 +45,9 @@ export class LLMError extends Error {
 
 // ─── Constants ───────────────────────────────────────────────
 
-export const DEFAULT_TIMEOUT_MS = 120_000;
+export const DEFAULT_TIMEOUT_MS = 180_000; // 3 minutes per attempt
 export const MAX_RETRIES = 3;
-export const RETRY_BASE_DELAY_MS = 1_000;
+export const RETRY_BASE_DELAY_MS = 5_000; // 5s base → 5s, 15s, 45s exponential
 
 /**
  * Parse a model spec of the form "provider/model-name" into its parts.

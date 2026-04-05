@@ -185,7 +185,8 @@ export class CopilotProvider implements LLMProvider {
               err,
             );
           }
-          await sleep(RETRY_BASE_DELAY_MS * attempt);
+          // Exponential backoff: 5s, 15s, 45s
+          await sleep(RETRY_BASE_DELAY_MS * 3 ** (attempt - 1));
           continue;
         }
 
@@ -198,7 +199,8 @@ export class CopilotProvider implements LLMProvider {
               err,
             );
           }
-          await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt);
+          // Exponential backoff: 5s, 15s, 45s
+          await sleep(RETRY_BASE_DELAY_MS * 3 ** (attempt - 1));
           continue;
         }
 

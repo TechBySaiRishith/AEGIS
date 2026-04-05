@@ -1047,8 +1047,8 @@ async function detectDataHandling(repoDir: string): Promise<DataHandlingPattern[
 // ─── Code Excerpt Extraction (for large files) ───────────────
 
 const LARGE_FILE_THRESHOLD = 20_000; // chars
-const MAX_EXCERPT_SIZE = 30_000; // chars per file
-const MAX_TOTAL_EXCERPTS = 80_000; // total chars across all files
+const MAX_EXCERPT_SIZE = 12_000; // chars per file (reduced to fit LLM context)
+const MAX_TOTAL_EXCERPTS = 30_000; // total chars across all files
 
 /**
  * For source files that exceed the normal read limit (>20KB), extract

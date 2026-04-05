@@ -11,7 +11,7 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
-import { extractJSON } from "../utils.js";
+import { extractJSON, truncateProfile, capPromptSize } from "../utils.js";
 import {
   WATCHDOG_SYSTEM_PROMPT,
   buildWatchdogUserPrompt,
@@ -23,10 +23,10 @@ const MODULE_ID = "watchdog" as const;
 const META = EXPERT_MODULES[MODULE_ID];
 
 /** Max characters per file to avoid blowing the context window */
-const MAX_FILE_CHARS = 30_000;
+const MAX_FILE_CHARS = 15_000;
 
 /** Max total characters across all files sent to the LLM */
-const MAX_TOTAL_CHARS = 100_000;
+const MAX_TOTAL_CHARS = 30_000;
 
 /** File extensions we care about */
 const CODE_EXTENSIONS = new Set([
@@ -285,17 +285,21 @@ export class WatchdogAnalyzer implements ExpertModule {
       const repoDir = path.join(config.dataDir, "repos", app.id);
       const codeSnippets = await readKeyFiles(repoDir, app);
 
-      // 2. Build the analysis prompt
-      const userPrompt = buildWatchdogUserPrompt(app, codeSnippets);
+      // 2. Truncate profile to prevent payload overflow
+      const safeApp = truncateProfile(app);
 
-      // 3. Send to LLM
+      // 3. Build the analysis prompt (capped to safe size)
+      const rawPrompt = buildWatchdogUserPrompt(safeApp, codeSnippets);
+      const userPrompt = capPromptSize(rawPrompt);
+
+      // 4. Send to LLM
       const response = await llm.complete(userPrompt, {
         systemPrompt: WATCHDOG_SYSTEM_PROMPT,
         temperature: 0.2,
         maxTokens: 8192,
       });
 
-      // 4. Parse the LLM response
+      // 5. Parse the LLM response
       const jsonStr = extractJSON(response.content);
       let parsed: LLMAnalysisResponse;
       try {
@@ -310,7 +314,7 @@ export class WatchdogAnalyzer implements ExpertModule {
         );
       }
 
-      // 5. Transform into ExpertAssessment
+      // 6. Transform into ExpertAssessment
       const findings = parseFindings(parsed.findings ?? []);
       const score = typeof parsed.score === "number"
         ? Math.max(0, Math.min(100, parsed.score))
