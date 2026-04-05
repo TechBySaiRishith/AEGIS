@@ -119,6 +119,8 @@ docker compose up --build
 
 Verify that the health check shows `anthropic: { "available": true }` and `mock: { "available": false }`.
 
+> **Copilot Enterprise alternative:** If you have GitHub Copilot Enterprise, you can skip the Anthropic key entirely. Run `copilot-api auth` (one-time browser login), then set `COPILOT_GITHUB_TOKEN` in `.env`. This gives AEGIS access to premium models such as `copilot/gpt-5.4` and `copilot/claude-opus-4.6` at no additional per-token cost. The default `ANTHROPIC_API_KEY` / `MOCK_MODE` flow still works as before.
+
 ---
 
 ## Submitting VeriMedia for Evaluation
@@ -265,7 +267,7 @@ Confidence = mean(module scores) / 100. Reduced by 0.15 for each module that fai
 | **Multi-input support** | GitHub URLs (with clone), conversation JSON, API endpoints |
 | **Real-time updates** | SSE event stream with replay, status progression, per-module progress |
 | **Report generation** | JSON and HTML report formats from structured data (no LLM for reports) |
-| **Multi-provider LLM** | Anthropic, OpenAI, GitHub Models, custom endpoints (Ollama, vLLM), mock |
+| **Multi-provider LLM** | Anthropic, Copilot (GitHub Copilot Enterprise), OpenAI, GitHub Models, custom endpoints (Ollama, vLLM), mock |
 | **Configurable** | Per-module model configuration, mock mode for demos, environment-driven |
 
 ### D4 — Documentation & Presentation
@@ -304,6 +306,10 @@ MOCK_MODE=1
 
 # Option B: Set a real API key
 ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# Option C: Use GitHub Copilot Enterprise (run `copilot-api auth` first)
+# Provides access to premium models like copilot/gpt-5.4, copilot/claude-opus-4.6, etc.
+COPILOT_GITHUB_TOKEN=ghu_...
 ```
 
 ### Evaluation Stuck in "cloning" Status

@@ -507,6 +507,7 @@ All three expert modules run in parallel after the intake stage.
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | One provider or `MOCK_MODE` | — | Anthropic Claude API key |
+| `COPILOT_GITHUB_TOKEN` | | — | GitHub Copilot OAuth token (`ghu_*`). Run `copilot-api auth` to obtain one. Enables premium models via Copilot Enterprise. |
 | `OPENAI_API_KEY` | | — | OpenAI API key |
 | `GITHUB_TOKEN` | Recommended | — | GitHub PAT for cloning private repos and using GitHub Models |
 | `CUSTOM_LLM_BASE_URL` | | — | OpenAI-compatible endpoint (Ollama, vLLM, etc.) |
@@ -534,7 +535,7 @@ All three expert modules run in parallel after the intake stage.
 | **Frontend** | Next.js 16 + React 19 |
 | **Database** | SQLite via [Drizzle ORM](https://orm.drizzle.team/) |
 | **Shared types** | `@aegis/shared` workspace package (TypeScript) |
-| **LLM providers** | Anthropic SDK, OpenAI-compatible (OpenAI, GitHub Models, Ollama, vLLM) |
+| **LLM providers** | Anthropic SDK, GitHub Copilot Enterprise, OpenAI-compatible (OpenAI, GitHub Models, Ollama, vLLM) |
 | **Deployment** | Docker Compose (API + Web, health-checked) |
 | **Language** | TypeScript throughout |
 
@@ -576,6 +577,7 @@ aegis/
 │   │   │   │   ├── provider.ts     # LLMProvider interface, LLMError, parseModelSpec
 │   │   │   │   ├── registry.ts     # Auto-discovery, per-module resolution
 │   │   │   │   ├── anthropic.ts    # Anthropic Claude provider
+│   │   │   │   ├── copilot.ts      # GitHub Copilot Enterprise provider (token exchange + auto-refresh)
 │   │   │   │   ├── openai-compat.ts# OpenAI, GitHub Models, custom endpoint providers
 │   │   │   │   └── mock.ts         # Mock provider for demo/testing
 │   │   │   ├── db/
@@ -618,10 +620,43 @@ AEGIS supports multiple LLM providers simultaneously through its **LLM Registry*
 | Provider | Env Variable(s) | Default Model |
 |---|---|---|
 | **Anthropic** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-5-20250514` |
+| **Copilot** | `COPILOT_GITHUB_TOKEN` (or `copilot-api auth`) | `gpt-5.4` |
 | **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` |
 | **GitHub Models** | `GITHUB_TOKEN` | `gpt-4o` |
 | **Custom** (OpenAI-compatible) | `CUSTOM_LLM_BASE_URL` + `CUSTOM_LLM_API_KEY` | `default` |
 | **Mock** | `MOCK_MODE=1` | `mock-v1` |
+
+### Copilot Provider (GitHub Copilot Enterprise)
+
+If your GitHub account has **Copilot Enterprise**, the `CopilotProvider` gives AEGIS access to premium models — including GPT-5.4 and Claude Opus 4.6 — at no additional per-token cost.
+
+**Setup (one-time):**
+
+```bash
+# Browser-based login — writes a token to your config
+copilot-api auth
+
+# Or set the token directly:
+export COPILOT_GITHUB_TOKEN=ghu_xxxxxxxxxxxx
+```
+
+**How it works:** The provider exchanges your GitHub OAuth token (`ghu_*`) for a short-lived Copilot token via `api.github.com/copilot_internal/v2/token`, then calls `api.githubcopilot.com/chat/completions`. Tokens are auto-refreshed before expiry.
+
+**Available models:**
+
+| Provider | Model ID | Notes |
+|----------|----------|-------|
+| copilot | gpt-5.4 | Top-tier GPT |
+| copilot | gpt-5.2 | |
+| copilot | gpt-5.1 | |
+| copilot | gpt-5-mini | Fast |
+| copilot | claude-opus-4.6-1m | 1M context |
+| copilot | claude-opus-4.6 | Premium |
+| copilot | claude-opus-4.5 | |
+| copilot | claude-sonnet-4.6 | Latest Sonnet |
+| copilot | claude-sonnet-4.5 | Good balance |
+| copilot | claude-haiku-4.5 | Fastest Claude |
+| copilot | gemini-2.5-pro | |
 
 ### Per-Module Model Configuration
 
@@ -630,8 +665,8 @@ Each expert module can use a different provider and model:
 ```bash
 # In .env:
 SENTINEL_MODEL=anthropic/claude-sonnet-4-5-20250514
-WATCHDOG_MODEL=openai/gpt-4o
-GUARDIAN_MODEL=github/gpt-4o
+WATCHDOG_MODEL=copilot/gpt-5.4
+GUARDIAN_MODEL=copilot/claude-sonnet-4.5
 SYNTHESIZER_MODEL=anthropic/claude-sonnet-4-5-20250514
 ```
 
@@ -641,7 +676,7 @@ For each module, the registry resolves the provider in this order:
 
 1. **Per-module override** — e.g. `SENTINEL_MODEL=anthropic/claude-sonnet-4-5-20250514`
 2. **Global default** — `AEGIS_DEFAULT_MODEL=anthropic/claude-sonnet-4-5-20250514`
-3. **First available provider** — in preference order: Anthropic → OpenAI → GitHub → Custom → Mock
+3. **First available provider** — in preference order: Anthropic → Copilot → OpenAI → GitHub → Custom → Mock
 
 ### Using Ollama (Local Models)
 

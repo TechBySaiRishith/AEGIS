@@ -53,6 +53,7 @@ curl http://localhost:3001/api/health
   "version": "0.1.0",
   "providers": {
     "anthropic": { "available": true, "model": "claude-sonnet-4-5-20250514" },
+    "copilot": { "available": false },
     "openai": { "available": false },
     "github": { "available": false },
     "custom": { "available": false },
@@ -457,7 +458,7 @@ type ExpertModuleId = "sentinel" | "watchdog" | "guardian";
 ### LLM Providers
 
 ```typescript
-type LLMProvider = "anthropic" | "openai" | "github" | "custom" | "mock";
+type LLMProvider = "anthropic" | "copilot" | "openai" | "github" | "custom" | "mock";
 ```
 
 ### Finding
