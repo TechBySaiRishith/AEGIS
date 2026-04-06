@@ -261,10 +261,10 @@ cd aegis
 
 # 2. Create your environment file
 cp .env.example .env
-# Configure at least one LLM provider API key
+# Edit .env — add at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
 
 # 3. Build and start all services
-docker compose up --build
+docker compose up -d
 ```
 
 Wait for the health checks to pass (about 30 seconds), then:

@@ -68,10 +68,10 @@ export function validateConfig(): void {
     isCopilotAvailable();
 
   if (!hasKey) {
-    throw new Error(
-      "AEGIS startup failed: no LLM API key configured.\n" +
-        "Set at least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, COPILOT_GITHUB_TOKEN, " +
-        "or CUSTOM_LLM_BASE_URL+CUSTOM_LLM_API_KEY."
+    console.warn(
+      "⚠️  No LLM API key configured. Set at least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, " +
+        "GITHUB_TOKEN, COPILOT_GITHUB_TOKEN, or CUSTOM_LLM_BASE_URL+CUSTOM_LLM_API_KEY.\n" +
+        "The server will start, but evaluation endpoints will fail until a provider is configured."
     );
   }
 }
