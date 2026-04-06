@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
 
   // Proxy /api requests to the Hono backend so everything runs on one port
   async rewrites() {
-    const apiUrl = process.env.API_INTERNAL_URL || "http://localhost:3001"; // single source: also in lib/env.server.ts
+    const port = process.env.PORT || "3001";
+    const apiUrl = process.env.API_INTERNAL_URL || `http://localhost:${port}`;
     return [
       {
         source: "/api/:path*",
