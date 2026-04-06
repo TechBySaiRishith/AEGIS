@@ -8,7 +8,7 @@ RUN npm install -g pnpm
 WORKDIR /app
 
 # Copy workspace configuration
-COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 
 # Copy all workspace package manifests for dependency resolution
 COPY packages/shared/package.json packages/shared/package.json
@@ -33,17 +33,22 @@ FROM node:22-alpine
 
 # git is needed at runtime for cloning repositories
 RUN apk add --no-cache git
+RUN npm install -g pnpm
 
 ENV NODE_ENV=production
 WORKDIR /app
 
-# ── API artifacts ────────────────────────────────────────────
-# Copy API dist + its node_modules (includes native better-sqlite3)
-COPY --from=build /app/apps/api/dist ./apps/api/dist
+# Copy workspace config + manifests for a prod-only install
+COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/packages/shared/package.json ./packages/shared/package.json
+
+# Install prod deps only (re-creates proper pnpm symlinks)
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy built artifacts
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 
 # ── Web artifacts (Next.js standalone) ───────────────────────
 COPY --from=build /app/apps/web/.next/standalone ./
@@ -55,7 +60,6 @@ RUN mkdir -p /app/data
 # Entrypoint runs both API and Web
 COPY docker/entrypoint.sh ./entrypoint.sh
 
-ENV PORT=5555
 ENV HOSTNAME="0.0.0.0"
 ENV API_INTERNAL_URL="http://localhost:3001"
 
