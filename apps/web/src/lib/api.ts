@@ -8,6 +8,7 @@ import type {
   SSEEvent,
   Verdict,
 } from "@aegis/shared";
+import { EXPERT_MODULES } from "@aegis/shared";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -58,16 +59,17 @@ function normalizeAssessments(payload: EvaluationApiPayload): Evaluation["assess
         a.moduleId,
         {
           ...a,
-          moduleName: a.moduleName || a.moduleId,
-          framework: a.framework || "Unknown",
+          moduleName: a.moduleName || EXPERT_MODULES[a.moduleId]?.name || a.moduleId,
+          framework: a.framework || EXPERT_MODULES[a.moduleId]?.framework || "Unknown",
           status: a.status || "failed",
           score: a.score ?? 0,
           riskLevel: a.riskLevel || "info",
           findings: a.findings ?? [],
-          summary: a.summary || "",
+          summary: a.summary || (a.status === "failed" ? "Module failed before producing findings." : ""),
           recommendation: a.recommendation || "",
           completedAt: a.completedAt || new Date().toISOString(),
           model: a.model || "unknown",
+          error: a.error || undefined,
         } satisfies ExpertAssessment,
       ]),
   ) as Evaluation["assessments"];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   EXPERT_MODULES,
@@ -113,6 +113,244 @@ function resolveApplicationTitle(name?: string | null, sourceUrl?: string | null
   if (name && !isLikelyUrl(name)) return name;
   const extracted = extractAppName(sourceUrl ?? name);
   return extracted || "Evaluation";
+}
+
+function renderInlineFormatting(text: string): ReactNode[] {
+  return text
+    .split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
+    .filter(Boolean)
+    .map((segment, index) => {
+      if (segment.startsWith("**") && segment.endsWith("**")) {
+        return (
+          <strong key={`${segment}-${index}`} className="font-semibold text-[var(--text)]">
+            {segment.slice(2, -2)}
+          </strong>
+        );
+      }
+
+      if (segment.startsWith("`") && segment.endsWith("`")) {
+        return (
+          <code
+            key={`${segment}-${index}`}
+            className="rounded-md border border-white/10 bg-black/25 px-1.5 py-0.5 text-[0.9em] text-[var(--accent)]"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            {segment.slice(1, -1)}
+          </code>
+        );
+      }
+
+      return <span key={`${segment}-${index}`}>{segment}</span>;
+    });
+}
+
+function normalizeNarrative(text?: string) {
+  return text?.replace(/\r\n/g, "\n").trim() ?? "";
+}
+
+function getNarrativeSource(evaluation: Evaluation) {
+  return normalizeNarrative(evaluation.report?.executiveSummary) || normalizeNarrative(evaluation.council?.reasoning);
+}
+
+function isMarkdownTable(lines: string[]) {
+  if (lines.length < 2) return false;
+  const divider = lines[1].trim();
+  return (
+    lines.every((line) => line.includes("|")) &&
+    /^\|?[\s:-]+(?:\|[\s:-]+)+\|?$/.test(divider)
+  );
+}
+
+function parseTableRow(line: string) {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function renderNarrativeTable(lines: string[]) {
+  const [header, , ...body] = lines;
+  const headers = parseTableRow(header);
+  const rows = body.map(parseTableRow);
+
+  return (
+    <div className="overflow-x-auto rounded-[1.2rem] border border-white/8 bg-black/18">
+      <table className="min-w-full border-collapse text-left text-sm">
+        <thead className="bg-white/[0.04] text-[0.72rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+          <tr>
+            {headers.map((cell, index) => (
+              <th key={`${cell}-${index}`} className="px-4 py-3 font-semibold">
+                {cell}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`row-${rowIndex}`} className="border-t border-white/8 align-top">
+              {row.map((cell, cellIndex) => (
+                <td key={`cell-${rowIndex}-${cellIndex}`} className="px-4 py-3 leading-7 text-[var(--text-muted)]">
+                  {renderInlineFormatting(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderNarrativeSection(lines: string[]) {
+  const trimmed = lines.map((line) => line.trim()).filter(Boolean);
+  if (!trimmed.length) return null;
+
+  if (isMarkdownTable(trimmed)) {
+    return renderNarrativeTable(trimmed);
+  }
+
+  const titleCandidate = trimmed[0];
+  const hasSectionTitle =
+    trimmed.length > 1 &&
+    titleCandidate.endsWith(":") &&
+    !titleCandidate.startsWith("-") &&
+    !titleCandidate.startsWith("•");
+
+  const title = hasSectionTitle ? titleCandidate.slice(0, -1) : null;
+  const content = hasSectionTitle ? trimmed.slice(1) : trimmed;
+  const listLike = content.length > 1 && content.every((line) => /^([-•*]|\d+\.|⚠|✓|✗)/.test(line) || /^[A-Za-z]/.test(line));
+  const tableLike = content.length > 1 && content.some((line) => /\s{2,}/.test(line)) && content.some((line) => /—|Δ|\/100/.test(line));
+
+  return (
+    <div className="space-y-3">
+      {title ? (
+        <h3
+          className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--text)]"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {title}
+        </h3>
+      ) : null}
+
+      {tableLike ? (
+        <div className="overflow-x-auto rounded-[1.2rem] border border-white/8 bg-black/20 px-4 py-4">
+          <pre className="text-sm leading-7 whitespace-pre-wrap text-[var(--text-muted)]" style={{ fontFamily: "var(--font-mono)" }}>
+            {content.join("\n")}
+          </pre>
+        </div>
+      ) : listLike ? (
+        <div className="space-y-2">
+          {content.map((line, index) => {
+            const cleaned = line.replace(/^([-•*]|\d+\.)\s+/, "").replace(/^[⚠✓✗]\s*/, "");
+            return (
+              <div key={`${line}-${index}`} className="rounded-[1.1rem] border border-white/8 bg-black/18 px-4 py-3 text-sm leading-7 text-[var(--text-muted)]">
+                {renderInlineFormatting(cleaned)}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-4 text-base leading-[1.85] text-[var(--text-muted)]">
+          {content.map((line, index) => (
+            <p key={`${line}-${index}`}>{renderInlineFormatting(line)}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatAssessmentStatus(status: ExpertAssessment["status"]) {
+  switch (status) {
+    case "completed":
+      return "Complete";
+    case "partial":
+      return "Partial";
+    case "failed":
+      return "Module failed";
+    default:
+      return status;
+  }
+}
+
+function ModuleBadge({ moduleId }: { moduleId: ExpertModuleId }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full border px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em]"
+      style={{
+        color: MODULE_ACCENTS[moduleId],
+        borderColor: `color-mix(in srgb, ${MODULE_ACCENTS[moduleId]} 20%, transparent)`,
+        background: `color-mix(in srgb, ${MODULE_ACCENTS[moduleId]} 10%, transparent)`,
+      }}
+    >
+      {EXPERT_MODULES[moduleId].name}
+    </span>
+  );
+}
+
+function NarrativePanel({ text }: { text: string }) {
+  const sections = useMemo(
+    () =>
+      normalizeNarrative(text)
+        .split(/\n{2,}/)
+        .map((section) => section.split("\n"))
+        .filter((section) => section.some((line) => line.trim())),
+    [text],
+  );
+
+  if (!sections.length) {
+    return <p className="text-sm leading-7 text-[var(--text-muted)]">Council reasoning unavailable.</p>;
+  }
+
+  return (
+    <div className="max-h-[38rem] space-y-6 overflow-y-auto pr-2">
+      {sections.map((section, index) => (
+        <div key={`section-${index}`} className="rounded-[1.4rem] border border-white/8 bg-black/16 px-4 py-4 sm:px-5">
+          {renderNarrativeSection(section)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExpandableText({
+  text,
+  collapsedLines = 4,
+  className = "",
+  textClassName = "",
+}: {
+  text: string;
+  collapsedLines?: 3 | 4 | 5 | 6;
+  className?: string;
+  textClassName?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > 260;
+  const clampClass =
+    collapsedLines === 3
+      ? "line-clamp-3"
+      : collapsedLines === 5
+        ? "line-clamp-5"
+        : collapsedLines === 6
+          ? "line-clamp-6"
+          : "line-clamp-4";
+
+  return (
+    <div className={className}>
+      <p className={`${textClassName} ${expanded || !isLong ? "" : clampClass}`.trim()}>{text}</p>
+      {isLong ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] transition duration-200 hover:border-white/16 hover:text-[var(--text)]"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function SeverityBadge({ severity }: { severity: Severity }) {
@@ -255,13 +493,20 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
   const accent = MODULE_ACCENTS[moduleId];
   const module = EXPERT_MODULES[moduleId];
   const [showFindings, setShowFindings] = useState(false);
+  const isFailed = assessment.status === "failed";
+  const statusLabel = formatAssessmentStatus(assessment.status);
+  const failureMessage = assessment.error || "Module failed before findings were generated.";
 
   return (
     <div
-      className="panel panel-interactive rounded-[1.75rem] p-6"
+      className={`panel rounded-[1.75rem] p-6 ${isFailed ? "" : "panel-interactive"}`}
       style={{
-        borderColor: `color-mix(in srgb, ${accent} 28%, rgba(255,255,255,0.08))`,
-        background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 10%, rgba(24,24,27,0.96)) 0%, rgba(24,24,27,0.96) 52%), linear-gradient(135deg, rgba(255,255,255,0.04), transparent)`,
+        borderColor: isFailed
+          ? "color-mix(in srgb, var(--border) 78%, transparent)"
+          : `color-mix(in srgb, ${accent} 28%, rgba(255,255,255,0.08))`,
+        background: isFailed
+          ? "linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 88%, transparent), color-mix(in srgb, var(--surface) 96%, transparent))"
+          : `linear-gradient(180deg, color-mix(in srgb, ${accent} 10%, rgba(24,24,27,0.96)) 0%, rgba(24,24,27,0.96) 52%), linear-gradient(135deg, rgba(255,255,255,0.04), transparent)`,
       }}
     >
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
@@ -272,7 +517,10 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
             </div>
             <div>
               <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Expert module</div>
-              <h3 className="mt-1 text-2xl font-semibold" style={{ color: accent }}>
+              <h3
+                className="mt-1 text-2xl font-semibold"
+                style={{ color: isFailed ? "var(--text-muted)" : accent }}
+              >
                 {module.name}
               </h3>
             </div>
@@ -282,29 +530,59 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
           </p>
         </div>
 
-        <ScoreRing score={assessment.score} color={accent} label="Score" />
+        {isFailed ? (
+          <div className="flex h-28 min-w-28 flex-col items-center justify-center rounded-[1.5rem] border border-white/8 bg-black/24 px-5 text-center">
+            <div className="text-3xl text-[var(--reject)]">⚠</div>
+            <div className="mt-2 text-[0.68rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">Module failed</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--reject)]">Not scored</div>
+          </div>
+        ) : (
+          <ScoreRing score={assessment.score} color={accent} label="Score" />
+        )}
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <SeverityBadge severity={assessment.riskLevel} />
+        {!isFailed ? <SeverityBadge severity={assessment.riskLevel} /> : null}
         <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-          {assessment.status}
+          {statusLabel}
         </span>
         <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
           {assessment.findings.length} finding{assessment.findings.length === 1 ? "" : "s"}
         </span>
       </div>
 
-      <p className="mt-6 text-sm leading-7 text-[var(--text-muted)]">{assessment.summary}</p>
-
-      {assessment.recommendation ? (
-        <div className="mt-5 rounded-[1.25rem] border border-white/10 bg-black/18 px-4 py-4">
-          <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">Recommended action</div>
-          <p className="mt-2 text-sm leading-7 text-[var(--text)]">{assessment.recommendation}</p>
+      {isFailed ? (
+        <div className="mt-6 rounded-[1.35rem] border border-[var(--reject)]/18 bg-[var(--reject-bg)] px-4 py-4">
+          <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--reject)]">Execution error</div>
+          <p className="mt-2 text-sm leading-7 text-[var(--text)]">{failureMessage}</p>
+          <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">
+            This module was excluded from average score calculations until a successful rerun completes.
+          </p>
         </div>
-      ) : null}
+      ) : (
+        <>
+          {assessment.summary ? (
+            <ExpandableText
+              text={assessment.summary}
+              className="mt-6"
+              textClassName="text-sm leading-7 text-[var(--text-muted)]"
+            />
+          ) : null}
 
-      {assessment.findings.length > 0 ? (
+          {assessment.recommendation ? (
+            <div className="mt-5 rounded-[1.25rem] border border-white/10 bg-black/18 px-4 py-4">
+              <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">Recommended action</div>
+              <ExpandableText
+                text={assessment.recommendation}
+                className="mt-2"
+                textClassName="text-sm leading-7 text-[var(--text)]"
+              />
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {!isFailed && assessment.findings.length > 0 ? (
         <div className="mt-6 space-y-4">
           <button
             type="button"
@@ -315,7 +593,7 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
           </button>
 
           <div className={`grid overflow-hidden transition-all duration-300 ${showFindings ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-            <div className="min-h-0 space-y-3">
+            <div className="min-h-0 max-h-[28rem] space-y-3 overflow-y-auto pr-2">
               {assessment.findings.map((finding) => (
                 <FindingRow key={finding.id} finding={finding} />
               ))}
@@ -336,7 +614,7 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
       className="panel animate-scale-in rounded-[2rem] p-7 sm:p-8"
       style={{
         borderColor: `color-mix(in srgb, ${style.color} 32%, rgba(255,255,255,0.08))`,
-        background: `linear-gradient(135deg, color-mix(in srgb, ${style.color} 16%, rgba(24,24,27,0.98)), rgba(24,24,27,0.98) 60%), radial-gradient(circle at top right, color-mix(in srgb, ${style.color} 18%, transparent), transparent 36%)`,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${style.color} 18%, rgba(24,24,27,0.98)), rgba(24,24,27,0.98) 58%), radial-gradient(circle at top right, color-mix(in srgb, ${style.color} 22%, transparent), transparent 36%)`,
       }}
     >
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
@@ -351,18 +629,26 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
             >
               {style.icon}
             </div>
-            <div>
-              <h2 className="text-4xl font-semibold tracking-[-0.04em]" style={{ color: style.color }}>
-                {style.label}
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
-                The council synthesis is complete and ready for final stakeholder review.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
+             <div>
+               <h2 className="text-4xl font-semibold tracking-[-0.04em]" style={{ color: style.color }}>
+                 {style.label}
+               </h2>
+               <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
+                 Command-center synthesis complete. This verdict reflects the consolidated judgment of Sentinel, Watchdog, and Guardian.
+               </p>
+               <div className="mt-4 flex flex-wrap gap-2">
+                 <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                   Institutional review package
+                 </span>
+                 <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                   Audit ready
+                 </span>
+               </div>
+             </div>
+           </div>
+         </div>
+ 
+         <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
           <div className="flex items-end justify-between gap-4">
             <div>
               <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Confidence</div>
@@ -563,77 +849,137 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
   const assessments = moduleIds
     .map((moduleId) => evaluation.assessments[moduleId])
     .filter((assessment): assessment is ExpertAssessment => Boolean(assessment));
-
-  const totalFindings = assessments.reduce((sum, assessment) => sum + assessment.findings.length, 0);
-  const averageScore = assessments.length
-    ? Math.round(assessments.reduce((sum, assessment) => sum + assessment.score, 0) / assessments.length)
+  const successfulAssessments = assessments.filter((assessment) => assessment.status !== "failed");
+  const failedAssessments = assessments.filter((assessment) => assessment.status === "failed");
+  const narrative = getNarrativeSource(evaluation);
+  const totalFindings = successfulAssessments.reduce((sum, assessment) => sum + assessment.findings.length, 0);
+  const averageScore = successfulAssessments.length
+    ? Math.round(successfulAssessments.reduce((sum, assessment) => sum + assessment.score, 0) / successfulAssessments.length)
     : 0;
-  const highestRisk = assessments.some((assessment) => assessment.riskLevel === "critical")
+  const highestRisk = successfulAssessments.some((assessment) => assessment.riskLevel === "critical")
     ? "critical"
-    : assessments.some((assessment) => assessment.riskLevel === "high")
+    : successfulAssessments.some((assessment) => assessment.riskLevel === "high")
       ? "high"
-      : assessments.some((assessment) => assessment.riskLevel === "medium")
+      : successfulAssessments.some((assessment) => assessment.riskLevel === "medium")
         ? "medium"
-        : assessments.some((assessment) => assessment.riskLevel === "low")
+        : successfulAssessments.some((assessment) => assessment.riskLevel === "low")
           ? "low"
           : "info";
+  const hasProfileData =
+    Boolean(evaluation.application.sourceUrl) ||
+    Boolean(evaluation.application.description) ||
+    evaluation.application.totalFiles > 0 ||
+    evaluation.application.totalLines > 0 ||
+    evaluation.application.entryPoints.length > 0;
+  const stats = [
+    {
+      label: "Average score",
+      value: averageScore.toString(),
+      suffix: "/100",
+      tone: "var(--accent)",
+      note: failedAssessments.length ? "Failed modules excluded" : "Across completed modules",
+    },
+    {
+      label: "Total findings",
+      value: totalFindings.toString().padStart(2, "0"),
+      tone: "var(--review)",
+      note: "Validated risk findings",
+    },
+    {
+      label: "Highest risk",
+      value: (SEVERITY_STYLES[highestRisk] ?? SEVERITY_STYLES.info).label,
+      tone: (SEVERITY_STYLES[highestRisk] ?? SEVERITY_STYLES.info).color,
+      note: "Highest completed-module severity",
+    },
+    {
+      label: "Completed modules",
+      value: successfulAssessments.length.toString().padStart(2, "0"),
+      suffix: `/ ${moduleIds.length}`,
+      tone: "var(--approve)",
+      note: failedAssessments.length ? `${failedAssessments.length} module failed` : "Full council coverage",
+    },
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in">
       {council ? <VerdictBanner verdict={council.verdict} confidence={council.confidence} /> : null}
 
       <section className="grid gap-4 xl:grid-cols-4">
-        {[
-          { label: "Average score", value: averageScore.toString(), suffix: "/100" },
-          { label: "Total findings", value: totalFindings.toString().padStart(2, "0") },
-          { label: "Highest risk", value: (SEVERITY_STYLES[highestRisk] ?? SEVERITY_STYLES.info).label },
-          { label: "Completed modules", value: assessments.length.toString().padStart(2, "0") },
-        ].map((metric, index) => (
-          <div key={metric.label} className={`panel rounded-[1.5rem] px-5 py-5 animate-slide-up ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : index === 2 ? "stagger-3" : "stagger-4"}`}>
+        {stats.map((metric, index) => (
+          <div
+            key={metric.label}
+            className={`panel rounded-[1.6rem] px-5 py-5 animate-slide-up ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : index === 2 ? "stagger-3" : "stagger-4"}`}
+            style={{
+              borderColor: `color-mix(in srgb, ${metric.tone} 22%, transparent)`,
+              background: `linear-gradient(180deg, color-mix(in srgb, ${metric.tone} 10%, rgba(24,24,27,0.96)), rgba(24,24,27,0.96) 68%)`,
+            }}
+          >
             <div className="metric-label">{metric.label}</div>
             <div className="mt-4 flex items-end gap-2">
-              <div className="metric-value">{metric.value}</div>
+              <div className="metric-value" style={{ color: metric.tone }}>
+                {metric.value}
+              </div>
               {metric.suffix ? <div className="pb-1 text-sm text-[var(--text-muted)]">{metric.suffix}</div> : null}
             </div>
+            <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">{metric.note}</p>
           </div>
         ))}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="panel rounded-[1.75rem] p-6 sm:p-7">
+      <section className="grid gap-6 xl:items-start xl:grid-cols-[0.72fr_1.28fr]">
+        <div className="panel self-start rounded-[1.75rem] p-6 sm:p-7">
           <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Application dossier</div>
           <h2 className="mt-3 text-2xl font-semibold">Mission context</h2>
-          <div className="mt-6 space-y-5 text-sm text-[var(--text-muted)]">
-            <div>
-              <div className="metric-label">Description</div>
+          <div className="mt-6 space-y-4 text-sm text-[var(--text-muted)]">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                {evaluation.application.inputType.replace(/_/g, " ")}
+              </span>
+              <span className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                {hasProfileData ? "Profiled intake" : "Limited intake"}
+              </span>
+            </div>
+            <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4">
+              <div className="metric-label">Mission note</div>
               <p className="mt-2 leading-7 text-[var(--text)]">
-                {evaluation.application.description || "No mission note supplied."}
+                {evaluation.application.description || "No mission note supplied for this evaluation."}
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
                 <div className="metric-label">Framework</div>
-                <div className="mt-2 text-[var(--text)]">{evaluation.application.framework || "Profile pending"}</div>
+                <div className="mt-2 text-sm leading-6 text-[var(--text)]">{evaluation.application.framework || "Profile pending"}</div>
               </div>
-              <div>
+              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
                 <div className="metric-label">Language</div>
-                <div className="mt-2 text-[var(--text)]">{evaluation.application.language || "Unknown"}</div>
+                <div className="mt-2 text-sm leading-6 text-[var(--text)]">{evaluation.application.language || "Unknown"}</div>
               </div>
-              <div>
+              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
                 <div className="metric-label">Files scanned</div>
-                <div className="mt-2 text-[var(--text)]" style={{ fontFamily: "var(--font-mono)" }}>
+                <div className="mt-2 text-lg text-[var(--text)]" style={{ fontFamily: "var(--font-mono)" }}>
                   {evaluation.application.totalFiles || 0}
                 </div>
               </div>
-              <div>
+              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
                 <div className="metric-label">Lines analyzed</div>
-                <div className="mt-2 text-[var(--text)]" style={{ fontFamily: "var(--font-mono)" }}>
+                <div className="mt-2 text-lg text-[var(--text)]" style={{ fontFamily: "var(--font-mono)" }}>
                   {evaluation.application.totalLines || 0}
                 </div>
               </div>
             </div>
+            {evaluation.application.sourceUrl ? (
+              <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4">
+                <div className="metric-label">Source</div>
+                <div
+                  className="mt-2 break-all text-sm leading-7 text-[var(--text)]"
+                  style={{ fontFamily: "var(--font-mono)" }}
+                >
+                  {evaluation.application.sourceUrl}
+                </div>
+              </div>
+            ) : null}
             {evaluation.application.entryPoints.length > 0 ? (
-              <div>
+              <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4">
                 <div className="metric-label">Entry points</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {evaluation.application.entryPoints.slice(0, 6).map((entryPoint) => (
@@ -644,15 +990,27 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
                 </div>
               </div>
             ) : null}
+            {!hasProfileData ? (
+              <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4 text-sm leading-7 text-[var(--text-muted)]">
+                Source profiling data is limited for this run. Re-run with a complete repository intake for a fuller dossier.
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="panel rounded-[1.75rem] p-6 sm:p-7">
-          <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Council analysis</div>
-          <h2 className="mt-3 text-2xl font-semibold">Narrative synthesis</h2>
-          <p className="mt-5 text-sm leading-7 text-[var(--text-muted)]">
-            {evaluation.report?.executiveSummary || council?.reasoning || "Council reasoning unavailable."}
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Council analysis</div>
+              <h2 className="mt-3 text-2xl font-semibold">Narrative synthesis</h2>
+            </div>
+            <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              Scrollable brief
+            </div>
+          </div>
+          <div className="mt-5">
+            <NarrativePanel text={narrative} />
+          </div>
 
           {council?.perModuleSummary ? (
             <div className="mt-6 grid gap-3 lg:grid-cols-3">
@@ -665,10 +1023,8 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
                     key={moduleId}
                     className="rounded-[1.25rem] border border-white/8 bg-black/18 px-4 py-4"
                   >
-                    <div className="text-[0.72rem] uppercase tracking-[0.18em]" style={{ color: MODULE_ACCENTS[moduleId] }}>
-                      {EXPERT_MODULES[moduleId].name}
-                    </div>
-                    <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">{summary}</p>
+                    <ModuleBadge moduleId={moduleId} />
+                    <p className="mt-3 text-sm leading-7 text-[var(--text-muted)] line-clamp-4">{summary}</p>
                   </div>
                 );
               })}
@@ -694,9 +1050,16 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
 
       {council?.critiques.length ? (
         <section className="panel rounded-[1.75rem] p-6 sm:p-7">
-          <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Cross-module dialogue</div>
-          <h2 className="mt-3 text-2xl font-semibold">Council critiques</h2>
-          <div className="mt-6 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Cross-module dialogue</div>
+              <h2 className="mt-3 text-2xl font-semibold">Council critiques</h2>
+            </div>
+            <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              {council.critiques.length} items
+            </div>
+          </div>
+          <div className="mt-6 grid gap-4 xl:grid-cols-2">
             {council.critiques.map((critique, index) => {
               const tone =
                 critique.type === "conflict"
@@ -704,29 +1067,44 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
                   : critique.type === "agreement"
                     ? "var(--approve)"
                     : "var(--guardian)";
+              const severity = critique.type === "conflict" ? "high" : critique.type === "addition" ? "medium" : "info";
+              const critiqueLabel =
+                critique.type === "conflict" ? "Material divergence" : critique.type === "agreement" ? "Shared signal" : "Supplemental signal";
 
               return (
-                <div key={`${critique.fromModule}-${critique.aboutModule}-${index}`} className="rounded-[1.25rem] border border-white/8 bg-black/18 px-4 py-4">
-                  <div className="flex flex-wrap items-center gap-3 text-[0.72rem] uppercase tracking-[0.18em]">
-                    <span style={{ color: MODULE_ACCENTS[critique.fromModule] }}>
-                      {EXPERT_MODULES[critique.fromModule].name}
-                    </span>
-                    <span className="text-[var(--text-muted)]">→</span>
-                    <span style={{ color: MODULE_ACCENTS[critique.aboutModule] }}>
-                      {EXPERT_MODULES[critique.aboutModule].name}
-                    </span>
+                <div
+                  key={`${critique.fromModule}-${critique.aboutModule}-${index}`}
+                  className="rounded-[1.35rem] border border-white/8 bg-black/18 px-5 py-5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ModuleBadge moduleId={critique.fromModule} />
+                      <span className="text-[var(--text-muted)]">→</span>
+                      <ModuleBadge moduleId={critique.aboutModule} />
+                    </div>
                     <span
-                      className="rounded-full border px-3 py-1"
+                      className="rounded-full border px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em]"
                       style={{
                         color: tone,
                         borderColor: `color-mix(in srgb, ${tone} 18%, transparent)`,
                         background: `color-mix(in srgb, ${tone} 12%, transparent)`,
                       }}
                     >
+                      {critiqueLabel}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <SeverityBadge severity={severity} />
+                    <span className="text-[0.72rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
                       {critique.type}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">{critique.description}</p>
+                  <ExpandableText
+                    text={critique.description}
+                    collapsedLines={5}
+                    className="mt-4"
+                    textClassName="text-sm leading-7 text-[var(--text-muted)]"
+                  />
                 </div>
               );
             })}
