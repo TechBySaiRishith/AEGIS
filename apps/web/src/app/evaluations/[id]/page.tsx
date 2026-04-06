@@ -850,7 +850,7 @@ export default function EvaluationDetailPage() {
           ← All evaluations
         </button>
 
-        <div className="mt-6 flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+        <div className="mt-6 flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">
             <div className="section-kicker">Evaluation dossier</div>
             <h1
@@ -870,12 +870,12 @@ export default function EvaluationDetailPage() {
             ) : null}
             {subtitle ? <p className="mt-4 max-w-3xl text-sm leading-8 text-[var(--text-muted)]">{subtitle}</p> : null}
           </div>
-          <div className="flex flex-wrap gap-3 xl:max-w-[32rem] xl:justify-end">
+          <div className="grid gap-3 sm:grid-cols-2 xl:w-auto xl:grid-cols-[minmax(15rem,15rem)_minmax(11rem,11rem)_minmax(11rem,11rem)]">
             {metaItems.map((item, index) => (
               <div
                 key={item.label}
-                className={`min-w-[10.5rem] flex-1 rounded-[1.3rem] border border-white/8 bg-[color:var(--surface)]/70 px-4 py-4 animate-slide-up sm:flex-none ${
-                  item.kind === "id" ? "sm:min-w-[14rem] xl:min-w-[15rem]" : "sm:min-w-[11rem]"
+                className={`rounded-[1.3rem] border border-white/8 bg-[color:var(--surface)]/70 px-4 py-4 animate-slide-up ${
+                  item.kind === "id" ? "sm:col-span-2 xl:col-span-1" : ""
                 } ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : "stagger-3"}`}
               >
                 <div className="metric-label">{item.label}</div>
