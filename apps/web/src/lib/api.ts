@@ -146,11 +146,13 @@ export async function getEvaluation(id: string): Promise<Evaluation> {
 }
 
 export function getEvaluationReportHtmlUrl(id: string, options?: { autoPrint?: boolean }): string {
-  const url = new URL(`${API_BASE}/api/evaluations/${id}/report/html`);
+  const path = `${API_BASE}/api/evaluations/${id}/report/html`;
   if (options?.autoPrint) {
+    const url = new URL(path, window.location.origin);
     url.searchParams.set("print", "1");
+    return url.toString();
   }
-  return url.toString();
+  return path;
 }
 
 export function subscribeToEvents(id: string, onEvent: (event: SSEEvent) => void): () => void {
