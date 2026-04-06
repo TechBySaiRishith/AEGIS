@@ -1307,7 +1307,7 @@ export default function EvaluationDetailPage() {
               className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(24,24,27,0.94),rgba(12,12,14,0.94))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text)] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_14px_30px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)]/45 hover:text-[var(--accent)] hover:shadow-[0_0_24px_rgba(79,70,229,0.18)]"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              <span aria-hidden="true">⇩</span>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               Export report
             </button>
           ) : null}
