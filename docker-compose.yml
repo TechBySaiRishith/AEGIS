@@ -1,35 +1,16 @@
 services:
-  api:
+  aegis:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "5555:5555"
     env_file: .env
     volumes:
       - ./data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5555/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
-
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    ports:
-      - "3000:3000"
-    depends_on:
-      api:
-        condition: service_healthy
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:3001
-      - PORT=3000
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      start_period: 15s
