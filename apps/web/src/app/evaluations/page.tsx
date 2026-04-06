@@ -28,7 +28,7 @@ function StatusBadge({ status }: { status: EvaluationStatus }) {
 }
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
-  const style = VERDICT_STYLES[verdict];
+  const style = VERDICT_STYLES[verdict] ?? VERDICT_STYLES.REVIEW;
 
   return (
     <span

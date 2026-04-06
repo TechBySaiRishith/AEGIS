@@ -1,10 +1,12 @@
 import type {
   ApplicationProfile,
+  CouncilVerdict,
   EvaluateRequest,
   EvaluateResponse,
   Evaluation,
   ExpertAssessment,
   SSEEvent,
+  Verdict,
 } from "@aegis/shared";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -16,7 +18,9 @@ type EvaluationApiPayload = Partial<Evaluation> & {
   applicationDescription?: string | null;
   applicationProfile?: Partial<ApplicationProfile> | null;
   assessments?: ExpertAssessment[] | Evaluation["assessments"];
-  verdict?: Evaluation["council"] | null;
+  // The API may return the verdict row as a top-level `verdict` field
+  // instead of the `council` field expected by the Evaluation type.
+  verdict?: Partial<CouncilVerdict> & { verdict?: Verdict } | null;
 };
 
 function normalizeApplication(payload: EvaluationApiPayload): ApplicationProfile {
@@ -41,13 +45,48 @@ function normalizeApplication(payload: EvaluationApiPayload): ApplicationProfile
 }
 
 function normalizeAssessments(payload: EvaluationApiPayload): Evaluation["assessments"] {
-  if (Array.isArray(payload.assessments)) {
-    return Object.fromEntries(
-      payload.assessments.map((assessment) => [assessment.moduleId, assessment]),
-    ) as Evaluation["assessments"];
-  }
+  const raw = Array.isArray(payload.assessments)
+    ? payload.assessments
+    : payload.assessments
+      ? Object.values(payload.assessments)
+      : [];
 
-  return (payload.assessments ?? {}) as Evaluation["assessments"];
+  return Object.fromEntries(
+    raw
+      .filter((a): a is ExpertAssessment => Boolean(a?.moduleId))
+      .map((a) => [
+        a.moduleId,
+        {
+          ...a,
+          moduleName: a.moduleName || a.moduleId,
+          framework: a.framework || "Unknown",
+          status: a.status || "failed",
+          score: a.score ?? 0,
+          riskLevel: a.riskLevel || "info",
+          findings: a.findings ?? [],
+          summary: a.summary || "",
+          recommendation: a.recommendation || "",
+          completedAt: a.completedAt || new Date().toISOString(),
+          model: a.model || "unknown",
+        } satisfies ExpertAssessment,
+      ]),
+  ) as Evaluation["assessments"];
+}
+
+function normalizeCouncil(payload: EvaluationApiPayload): CouncilVerdict | undefined {
+  const source = payload.council ?? payload.verdict;
+  if (!source || !source.verdict) return undefined;
+
+  return {
+    verdict: source.verdict,
+    confidence: source.confidence ?? 0,
+    reasoning: source.reasoning ?? "",
+    critiques: source.critiques ?? [],
+    perModuleSummary: source.perModuleSummary ?? ({} as CouncilVerdict["perModuleSummary"]),
+    algorithmicVerdict: source.algorithmicVerdict ?? source.verdict,
+    llmEnhanced: source.llmEnhanced ?? false,
+    deliberation: source.deliberation,
+  };
 }
 
 function normalizeEvaluation(payload: EvaluationApiPayload): Evaluation {
@@ -56,7 +95,7 @@ function normalizeEvaluation(payload: EvaluationApiPayload): Evaluation {
     status: payload.status ?? "pending",
     application: payload.application ?? normalizeApplication(payload),
     assessments: normalizeAssessments(payload),
-    council: payload.council ?? payload.verdict ?? undefined,
+    council: normalizeCouncil(payload),
     report: payload.report,
     createdAt: payload.createdAt ?? new Date().toISOString(),
     updatedAt: payload.updatedAt ?? payload.createdAt ?? new Date().toISOString(),

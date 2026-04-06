@@ -88,8 +88,35 @@ function formatDate(value?: string) {
   });
 }
 
+function isLikelyUrl(value?: string | null) {
+  if (!value) return false;
+  return /^(https?:\/\/|www\.)/i.test(value);
+}
+
+function extractAppName(source?: string | null) {
+  if (!source) return "";
+
+  const normalized = source.startsWith("http://") || source.startsWith("https://") ? source : `https://${source}`;
+
+  try {
+    const url = new URL(normalized);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const candidate = segments.at(-1) ?? url.hostname;
+    return decodeURIComponent(candidate).replace(/\.git$/i, "");
+  } catch {
+    const segments = source.split("/").filter(Boolean);
+    return segments.at(-1)?.replace(/\.git$/i, "") ?? source;
+  }
+}
+
+function resolveApplicationTitle(name?: string | null, sourceUrl?: string | null) {
+  if (name && !isLikelyUrl(name)) return name;
+  const extracted = extractAppName(sourceUrl ?? name);
+  return extracted || "Evaluation";
+}
+
 function SeverityBadge({ severity }: { severity: Severity }) {
-  const style = SEVERITY_STYLES[severity];
+  const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.info;
 
   return (
     <span
@@ -301,7 +328,7 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
 }
 
 function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: number }) {
-  const style = VERDICT_STYLES[verdict];
+  const style = VERDICT_STYLES[verdict] ?? VERDICT_STYLES.REVIEW;
   const confidencePercent = Math.round(confidence * 100);
 
   return (
@@ -559,7 +586,7 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
         {[
           { label: "Average score", value: averageScore.toString(), suffix: "/100" },
           { label: "Total findings", value: totalFindings.toString().padStart(2, "0") },
-          { label: "Highest risk", value: SEVERITY_STYLES[highestRisk].label },
+          { label: "Highest risk", value: (SEVERITY_STYLES[highestRisk] ?? SEVERITY_STYLES.info).label },
           { label: "Completed modules", value: assessments.length.toString().padStart(2, "0") },
         ].map((metric, index) => (
           <div key={metric.label} className={`panel rounded-[1.5rem] px-5 py-5 animate-slide-up ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : index === 2 ? "stagger-3" : "stagger-4"}`}>
@@ -770,9 +797,9 @@ export default function EvaluationDetailPage() {
 
   const metaItems = useMemo(
     () => [
-      { label: "Evaluation ID", value: evaluation ? evaluation.id : "—" },
-      { label: "Opened", value: evaluation ? formatDate(evaluation.createdAt) : "—" },
-      { label: "Updated", value: evaluation ? formatDate(evaluation.updatedAt) : "—" },
+      { label: "Evaluation ID", value: evaluation ? evaluation.id : "—", kind: "id" as const },
+      { label: "Opened", value: evaluation ? formatDate(evaluation.createdAt) : "—", kind: "date" as const },
+      { label: "Updated", value: evaluation ? formatDate(evaluation.updatedAt) : "—", kind: "date" as const },
     ],
     [evaluation],
   );
@@ -808,8 +835,9 @@ export default function EvaluationDetailPage() {
 
   const isComplete = evaluation.status === "completed";
   const isFailed = evaluation.status === "failed";
-  const title = evaluation.application.name || "Evaluation";
-  const subtitle = evaluation.application.description || evaluation.application.sourceUrl || evaluation.id;
+  const title = resolveApplicationTitle(evaluation.application.name, evaluation.application.sourceUrl);
+  const sourceUrl = evaluation.application.sourceUrl || (isLikelyUrl(evaluation.application.name) ? evaluation.application.name : "");
+  const subtitle = evaluation.application.description;
 
   return (
     <div className="space-y-8 pb-12">
@@ -822,18 +850,43 @@ export default function EvaluationDetailPage() {
           ← All evaluations
         </button>
 
-        <div className="mt-6 grid gap-8 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
-          <div>
+        <div className="mt-6 flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0 flex-1">
             <div className="section-kicker">Evaluation dossier</div>
-            <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">{title}</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-8 text-[var(--text-muted)]">{subtitle}</p>
+            <h1
+              className="mt-5 max-w-4xl text-3xl font-semibold tracking-[-0.04em] text-[var(--text)] sm:text-4xl"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {title}
+            </h1>
+            {sourceUrl ? (
+              <div
+                className="mt-3 max-w-3xl text-sm leading-7 text-[var(--text-muted)] break-all"
+                style={{ fontFamily: "var(--font-mono)" }}
+                title={sourceUrl}
+              >
+                {sourceUrl}
+              </div>
+            ) : null}
+            {subtitle ? <p className="mt-4 max-w-3xl text-sm leading-8 text-[var(--text-muted)]">{subtitle}</p> : null}
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 xl:justify-self-end">
+          <div className="flex flex-wrap gap-3 xl:max-w-[32rem] xl:justify-end">
             {metaItems.map((item, index) => (
-              <div key={item.label} className={`rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4 animate-slide-up ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : "stagger-3"}`}>
+              <div
+                key={item.label}
+                className={`min-w-[10.5rem] flex-1 rounded-[1.3rem] border border-white/8 bg-[color:var(--surface)]/70 px-4 py-4 animate-slide-up sm:flex-none ${
+                  item.kind === "id" ? "sm:min-w-[14rem] xl:min-w-[15rem]" : "sm:min-w-[11rem]"
+                } ${index === 0 ? "stagger-1" : index === 1 ? "stagger-2" : "stagger-3"}`}
+              >
                 <div className="metric-label">{item.label}</div>
-                <div className="mt-3 text-sm leading-6 text-[var(--text)]" style={{ fontFamily: index === 0 ? "var(--font-mono)" : undefined }}>
-                  {index === 0 && item.value.length > 14 ? `${item.value.slice(0, 14)}…` : item.value}
+                <div
+                  className={`mt-3 min-w-0 text-[var(--text)] ${
+                    item.kind === "id" ? "text-xs leading-6 break-all" : "text-sm leading-6 whitespace-nowrap"
+                  }`}
+                  style={{ fontFamily: item.kind === "id" ? "var(--font-mono)" : "var(--font-body)" }}
+                  title={item.value}
+                >
+                  {item.value}
                 </div>
               </div>
             ))}
