@@ -73,7 +73,11 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
 
     const profile = await handleIntake(request);
 
-    updateEvaluationStatus(evaluationId, "analyzing");
+    updateEvaluationStatus(evaluationId, "analyzing", {
+      applicationProfile: profile as unknown as Record<string, unknown>,
+      applicationName: profile.name,
+      applicationDescription: profile.description,
+    });
     pushEvent(evaluationId, "status", { status: "analyzing", message: "Application profiled. Starting expert analysis…" });
 
     // 2. Run experts in parallel
@@ -410,7 +414,9 @@ evaluate.get("/:id/report/html", (c) => {
     };
 
     const report = generateReport(evalData);
-    const html = renderHTMLReport(report);
+    const html = renderHTMLReport(report, {
+      autoPrint: c.req.query("print") === "1",
+    });
     return c.html(html);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

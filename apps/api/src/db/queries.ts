@@ -88,7 +88,13 @@ export function listEvaluations() {
 export function updateEvaluationStatus(
   id: string,
   status: EvaluationStatus,
-  extra?: { completedAt?: string; error?: string },
+  extra?: {
+    completedAt?: string;
+    error?: string;
+    applicationProfile?: Record<string, unknown>;
+    applicationName?: string;
+    applicationDescription?: string;
+  },
 ) {
   db.update(evaluations)
     .set({
@@ -96,6 +102,13 @@ export function updateEvaluationStatus(
       updatedAt: new Date().toISOString(),
       ...(extra?.completedAt && { completedAt: extra.completedAt }),
       ...(extra?.error && { error: extra.error }),
+      ...(extra?.applicationProfile && {
+        applicationProfile: JSON.stringify(extra.applicationProfile),
+      }),
+      ...(extra?.applicationName && { applicationName: extra.applicationName }),
+      ...(extra?.applicationDescription && {
+        applicationDescription: extra.applicationDescription,
+      }),
     })
     .where(eq(evaluations.id, id))
     .run();
