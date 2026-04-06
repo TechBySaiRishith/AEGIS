@@ -674,7 +674,7 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
 
   return (
     <div
-      className="panel animate-scale-in rounded-[2rem] p-7 sm:p-8"
+      className="panel animate-scale-in rounded-[2rem] p-7 transition-opacity duration-300 sm:p-8"
       style={{
         borderColor: `color-mix(in srgb, ${style.color} 32%, rgba(255,255,255,0.08))`,
         background: `linear-gradient(135deg, color-mix(in srgb, ${style.color} 18%, rgba(24,24,27,0.98)), rgba(24,24,27,0.98) 58%), radial-gradient(circle at top right, color-mix(in srgb, ${style.color} 22%, transparent), transparent 36%)`,
@@ -711,15 +711,19 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
            </div>
          </div>
  
-         <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Confidence</div>
-              <div className="mt-2 text-4xl font-semibold" style={{ color: style.color, fontFamily: "var(--font-mono)" }}>
-                {confidencePercent}%
-              </div>
-            </div>
-            <div className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+          <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5 transition-opacity duration-300">
+           <div className="flex items-end justify-between gap-4">
+             <div>
+               <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Confidence</div>
+               <div
+                 key={confidencePercent}
+                 className="mt-2 text-4xl font-semibold animate-fade-in transition-opacity duration-300"
+                 style={{ color: style.color, fontFamily: "var(--font-mono)" }}
+               >
+                 {confidencePercent}%
+               </div>
+             </div>
+             <div className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
               Audit ready
             </div>
           </div>
@@ -906,6 +910,37 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
   );
 }
 
+function CompletedResultsSkeleton() {
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <div className="panel rounded-[2rem] p-7 sm:p-8">
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div className="space-y-4">
+            <div className="h-3 w-28 animate-pulse rounded-full bg-white/10" />
+            <div className="h-10 w-52 animate-pulse rounded-full bg-white/10" />
+            <div className="h-20 max-w-2xl animate-pulse rounded-[1.5rem] bg-white/8" />
+          </div>
+          <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
+            <div className="h-3 w-24 animate-pulse rounded-full bg-white/10" />
+            <div className="mt-4 h-12 w-24 animate-pulse rounded-full bg-white/10" />
+            <div className="mt-5 h-3 w-full animate-pulse rounded-full bg-white/8" />
+          </div>
+        </div>
+      </div>
+
+      <section className="grid gap-4 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="panel rounded-[1.6rem] px-5 py-5">
+            <div className="h-3 w-24 animate-pulse rounded-full bg-white/10" />
+            <div className="mt-4 h-10 w-20 animate-pulse rounded-full bg-white/10" />
+            <div className="mt-3 h-4 w-32 animate-pulse rounded-full bg-white/8" />
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
 function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
   const moduleIds: ExpertModuleId[] = ["sentinel", "watchdog", "guardian"];
   const council = evaluation.council;
@@ -914,6 +949,13 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
     .filter((assessment): assessment is ExpertAssessment => Boolean(assessment));
   const successfulAssessments = assessments.filter((assessment) => assessment.status !== "failed");
   const failedAssessments = assessments.filter((assessment) => assessment.status === "failed");
+  const hasRealData = successfulAssessments.length > 0 && successfulAssessments.some((assessment) => assessment.score > 0);
+  const hasCouncilData = Boolean(council && council.confidence > 0);
+
+  if (!hasRealData && !hasCouncilData) {
+    return <CompletedResultsSkeleton />;
+  }
+
   const narrative = getNarrativeSource(evaluation);
   const totalFindings = successfulAssessments.reduce((sum, assessment) => sum + assessment.findings.length, 0);
   const averageScore = successfulAssessments.length
@@ -979,7 +1021,7 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
     <div className="space-y-8 animate-fade-in">
       {council ? <VerdictBanner verdict={council.verdict} confidence={council.confidence} /> : null}
 
-      <section className="grid gap-4 xl:grid-cols-4">
+      <section className="grid gap-4 xl:grid-cols-4 animate-fade-in transition-opacity duration-300">
         {stats.map((metric, index) => (
           <div
             key={metric.label}
@@ -1221,10 +1263,7 @@ export default function EvaluationDetailPage() {
         setEvents((previous) => [...previous, event]);
 
         if (event.type === "status") {
-          const status = (event.data as Record<string, unknown>).status as EvaluationStatus | undefined;
-          if (status) {
-            setEvaluation((previous) => (previous ? { ...previous, status } : previous));
-          }
+          void fetchEvaluation();
         }
 
         if (event.type === "verdict" || event.type === "complete") {
