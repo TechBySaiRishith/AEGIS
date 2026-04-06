@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import type { LLMResponse, LLMProvider as LLMProviderType } from "@aegis/shared";
 import {
   type LLMProvider,
@@ -20,9 +19,6 @@ const EDITOR_VERSION = "vscode/1.96.0";
 const EDITOR_PLUGIN_VERSION = "copilot-chat/0.24.2";
 const INTEGRATION_ID = "vscode-chat";
 
-const TOKEN_FILE_PATH =
-  "/Users/ankitdas/.local/share/copilot-api/github_token";
-
 // Refresh 60 s before actual expiry to avoid races
 const TOKEN_REFRESH_BUFFER_S = 60;
 
@@ -35,18 +31,11 @@ interface CopilotToken {
  * Resolve the long-lived GitHub OAuth token (`ghu_*`) used to obtain
  * short-lived Copilot session tokens.
  *
- * Priority: COPILOT_GITHUB_TOKEN > token file > GITHUB_TOKEN (if ghu_*)
+ * Priority: COPILOT_GITHUB_TOKEN > GITHUB_TOKEN (if ghu_*)
  */
 function resolveGitHubToken(): string | undefined {
   if (process.env.COPILOT_GITHUB_TOKEN) {
     return process.env.COPILOT_GITHUB_TOKEN;
-  }
-
-  try {
-    const fileToken = readFileSync(TOKEN_FILE_PATH, "utf-8").trim();
-    if (fileToken) return fileToken;
-  } catch {
-    // file missing — fall through
   }
 
   const gh = process.env.GITHUB_TOKEN;

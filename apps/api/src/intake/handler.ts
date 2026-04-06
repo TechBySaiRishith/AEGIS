@@ -1,5 +1,4 @@
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { nanoid } from "nanoid";
 import type {
   ApplicationProfile,
@@ -97,11 +96,12 @@ async function handleConversationJSON(
 
   let data: ConversationData;
   try {
-    const raw = await readFile(request.source, "utf-8");
-    data = JSON.parse(raw) as ConversationData;
+    // Accept inline JSON string directly — no file system reads.
+    // The source field contains the raw JSON conversation payload.
+    data = JSON.parse(request.source) as ConversationData;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to parse conversation JSON at "${request.source}": ${message}`);
+    throw new Error(`Failed to parse conversation JSON: ${message}`);
   }
 
   const messages = data.messages ?? [];
@@ -121,11 +121,13 @@ async function handleConversationJSON(
   const model = data.model ?? "unknown";
   const aiType = inferProviderFromModel(model);
 
+  const sourceName = data.model ? `conversation-${model}` : "conversation";
+
   return {
     id,
     inputType: "conversation_json",
-    sourceUrl: request.source,
-    name: path.basename(request.source, path.extname(request.source)),
+    sourceUrl: sourceName,
+    name: sourceName,
     description: request.description ?? `Conversation log (${messages.length} messages, model: ${model})`,
     framework: "conversation",
     language: "natural_language",
@@ -135,13 +137,11 @@ async function handleConversationJSON(
       {
         type: aiType,
         description: `Model: ${model}`,
-        files: [request.source],
+        files: [],
         ...(systemPrompts.length > 0 ? { systemPrompts } : {}),
       },
     ],
-    fileStructure: [
-      { path: path.basename(request.source), type: "file" },
-    ],
+    fileStructure: [],
     totalFiles: 1,
     totalLines: messages.length,
   };
