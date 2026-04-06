@@ -18,7 +18,7 @@ import type {
   Severity,
   Verdict,
 } from "@aegis/shared";
-import { getEvaluation, subscribeToEvents } from "@/lib/api";
+import { getEvaluation, getEvaluationReportHtmlUrl, subscribeToEvents } from "@/lib/api";
 
 const MODULE_ACCENTS: Record<ExpertModuleId, string> = {
   sentinel: "var(--sentinel)",
@@ -113,6 +113,40 @@ function resolveApplicationTitle(name?: string | null, sourceUrl?: string | null
   if (name && !isLikelyUrl(name)) return name;
   const extracted = extractAppName(sourceUrl ?? name);
   return extracted || "Evaluation";
+}
+
+function formatInputTypeLabel(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatCompactCount(value?: number) {
+  return new Intl.NumberFormat("en-US").format(value ?? 0);
+}
+
+function formatDetectedModel(model: string) {
+  const normalized = model.trim().toLowerCase();
+  if (!normalized) return model;
+  if (normalized === "whisper" || normalized === "whisper-1") return "Whisper";
+  if (normalized.startsWith("gpt-")) return `GPT-${model.trim().slice(4)}`;
+  if (normalized.startsWith("claude")) return model.trim().replace(/^claude/i, "Claude");
+  if (normalized.startsWith("gemini")) return model.trim().replace(/^gemini/i, "Gemini");
+  return formatInputTypeLabel(model);
+}
+
+function getSecurityFlags(securityProfile?: Evaluation["application"]["securityProfile"]) {
+  if (!securityProfile) return [];
+
+  const flags: string[] = [];
+  if (!securityProfile.hasAuthentication) flags.push("No auth");
+  if (securityProfile.hasFileUpload) flags.push("File upload");
+  if (!securityProfile.hasRateLimiting) flags.push("No rate limiting");
+  if (securityProfile.debugModeEnabled) flags.push("Debug mode");
+  if (!securityProfile.hasInputValidation) flags.push("No input validation");
+  return flags;
 }
 
 function renderInlineFormatting(text: string): ReactNode[] {
@@ -286,6 +320,35 @@ function ModuleBadge({ moduleId }: { moduleId: ExpertModuleId }) {
       }}
     >
       {EXPERT_MODULES[moduleId].name}
+    </span>
+  );
+}
+
+function ContextBadge({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <span
+      className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[0.72rem] leading-none text-[var(--text-muted)]"
+      style={{
+        borderColor: "color-mix(in srgb, var(--border) 82%, transparent)",
+        background: "color-mix(in srgb, var(--surface) 88%, var(--background))",
+      }}
+      title={`${label}: ${value}`}
+    >
+      <span>{label}</span>
+      <span
+        className="max-w-[18rem] truncate text-[var(--text)]"
+        style={{ fontFamily: mono ? "var(--font-mono)" : undefined }}
+      >
+        {value}
+      </span>
     </span>
   );
 }
@@ -871,6 +934,18 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
     evaluation.application.totalFiles > 0 ||
     evaluation.application.totalLines > 0 ||
     evaluation.application.entryPoints.length > 0;
+  const missionMeta = [
+    { label: "Input type", value: formatInputTypeLabel(evaluation.application.inputType.replace(/_/g, " ")) },
+    { label: "Framework", value: evaluation.application.framework || "Profile pending" },
+    { label: "Language", value: evaluation.application.language || "Unknown" },
+    { label: "Files scanned", value: formatCompactCount(evaluation.application.totalFiles || 0), mono: true },
+    { label: "Lines analyzed", value: formatCompactCount(evaluation.application.totalLines || 0), mono: true },
+    ...(evaluation.application.sourceUrl
+      ? [{ label: "Source URL", value: evaluation.application.sourceUrl, mono: true }]
+      : []),
+  ];
+  const detectedModels = Array.from(new Set((evaluation.application.detectedModels ?? []).map(formatDetectedModel))).filter(Boolean);
+  const securityFlags = getSecurityFlags(evaluation.application.securityProfile);
   const stats = [
     {
       label: "Average score",
@@ -926,83 +1001,72 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
         ))}
       </section>
 
-      <section className="grid gap-6 xl:items-start xl:grid-cols-[0.72fr_1.28fr]">
-        <div className="panel self-start rounded-[1.75rem] p-6 sm:p-7">
-          <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Application dossier</div>
-          <h2 className="mt-3 text-2xl font-semibold">Mission context</h2>
-          <div className="mt-6 space-y-4 text-sm text-[var(--text-muted)]">
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                {evaluation.application.inputType.replace(/_/g, " ")}
-              </span>
-              <span className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                {hasProfileData ? "Profiled intake" : "Limited intake"}
-              </span>
-            </div>
-            <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4">
-              <div className="metric-label">Mission note</div>
-              <p className="mt-2 leading-7 text-[var(--text)]">
+      <section className="grid gap-6">
+        <div className="panel rounded-[1.75rem] p-5 sm:p-6">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Application dossier</div>
+              <h2 className="mt-2 text-2xl font-semibold text-[var(--text)]" style={{ fontFamily: "var(--font-display)" }}>
+                Mission context
+              </h2>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--text-muted)]">
                 {evaluation.application.description || "No mission note supplied for this evaluation."}
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
-                <div className="metric-label">Framework</div>
-                <div className="mt-2 text-sm leading-6 text-[var(--text)]">{evaluation.application.framework || "Profile pending"}</div>
-              </div>
-              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
-                <div className="metric-label">Language</div>
-                <div className="mt-2 text-sm leading-6 text-[var(--text)]">{evaluation.application.language || "Unknown"}</div>
-              </div>
-              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
-                <div className="metric-label">Files scanned</div>
-                <div className="mt-2 text-lg text-[var(--text)]" style={{ fontFamily: "var(--font-mono)" }}>
-                  {evaluation.application.totalFiles || 0}
-                </div>
-              </div>
-              <div className="rounded-[1.2rem] border border-white/8 bg-black/18 px-4 py-4">
-                <div className="metric-label">Lines analyzed</div>
-                <div className="mt-2 text-lg text-[var(--text)]" style={{ fontFamily: "var(--font-mono)" }}>
-                  {evaluation.application.totalLines || 0}
-                </div>
-              </div>
-            </div>
-            {evaluation.application.sourceUrl ? (
-              <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4">
-                <div className="metric-label">Source</div>
-                <div
-                  className="mt-2 break-all text-sm leading-7 text-[var(--text)]"
-                  style={{ fontFamily: "var(--font-mono)" }}
-                >
-                  {evaluation.application.sourceUrl}
-                </div>
-              </div>
-            ) : null}
-            {evaluation.application.entryPoints.length > 0 ? (
-              <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4">
-                <div className="metric-label">Entry points</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {evaluation.application.entryPoints.slice(0, 6).map((entryPoint) => (
-                    <span key={entryPoint} className="data-chip rounded-full px-3 py-2 text-xs" style={{ fontFamily: "var(--font-mono)" }}>
-                      {entryPoint}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {!hasProfileData ? (
-              <div className="rounded-[1.3rem] border border-white/8 bg-black/18 px-4 py-4 text-sm leading-7 text-[var(--text-muted)]">
-                Source profiling data is limited for this run. Re-run with a complete repository intake for a fuller dossier.
-              </div>
-            ) : null}
+            <span
+              className="inline-flex self-start rounded-full border px-3 py-1 text-[0.68rem] text-[var(--text-muted)]"
+              style={{
+                borderColor: "color-mix(in srgb, var(--border) 82%, transparent)",
+                background: "color-mix(in srgb, var(--surface) 90%, var(--background))",
+              }}
+            >
+              {hasProfileData ? "Profiled intake" : "Limited intake"}
+            </span>
           </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {missionMeta.map((item) => (
+              <ContextBadge key={item.label} label={item.label} value={item.value} mono={item.mono} />
+            ))}
+            {detectedModels.map((model) => (
+              <span
+                key={model}
+                className="inline-flex items-center rounded-full border px-3 py-1.5 text-[0.72rem] leading-none text-[var(--text)]"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--watchdog) 30%, transparent)",
+                  background: "color-mix(in srgb, var(--watchdog) 10%, transparent)",
+                }}
+                title={`Detected model: ${model}`}
+              >
+                {model}
+              </span>
+            ))}
+            {securityFlags.map((flag) => (
+              <span
+                key={flag}
+                className="inline-flex items-center rounded-full border px-3 py-1.5 text-[0.72rem] leading-none text-[var(--text)]"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--review) 28%, transparent)",
+                  background: "color-mix(in srgb, var(--review) 10%, transparent)",
+                }}
+              >
+                {flag}
+              </span>
+            ))}
+          </div>
+          {!hasProfileData ? (
+            <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">
+              Source profiling data is limited for this run. Re-run with a complete repository intake for a fuller dossier.
+            </p>
+          ) : null}
         </div>
 
         <div className="panel rounded-[1.75rem] p-6 sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Council analysis</div>
-              <h2 className="mt-3 text-2xl font-semibold">Narrative synthesis</h2>
+              <h2 className="mt-3 text-2xl font-semibold text-[var(--text)]" style={{ fontFamily: "var(--font-display)" }}>
+                Narrative synthesis
+              </h2>
             </div>
             <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
               Scrollable brief
@@ -1013,7 +1077,7 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
           </div>
 
           {council?.perModuleSummary ? (
-            <div className="mt-6 grid gap-3 lg:grid-cols-3">
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {moduleIds.map((moduleId) => {
                 const summary = council.perModuleSummary[moduleId];
                 if (!summary) return null;
@@ -1024,7 +1088,7 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
                     className="rounded-[1.25rem] border border-white/8 bg-black/18 px-4 py-4"
                   >
                     <ModuleBadge moduleId={moduleId} />
-                    <p className="mt-3 text-sm leading-7 text-[var(--text-muted)] line-clamp-4">{summary}</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--text-muted)] line-clamp-5">{summary}</p>
                   </div>
                 );
               })}
@@ -1122,6 +1186,14 @@ export default function EvaluationDetailPage() {
 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [events, setEvents] = useState<SSEEvent[]>([]);
+
+  const handleExportReport = useCallback((evaluationId: string) => {
+    const reportUrl = getEvaluationReportHtmlUrl(evaluationId, { autoPrint: true });
+    const openedWindow = window.open(reportUrl, "_blank", "noopener,noreferrer");
+    if (!openedWindow) {
+      window.location.assign(reportUrl);
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -1220,13 +1292,26 @@ export default function EvaluationDetailPage() {
   return (
     <div className="space-y-8 pb-12">
       <section className="panel animate-scale-in rounded-[2rem] px-6 py-8 sm:px-8 lg:px-10">
-        <button
-          type="button"
-          onClick={() => router.push("/evaluations")}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] transition duration-200 hover:border-white/16 hover:text-[var(--accent)]"
-        >
-          ← All evaluations
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/evaluations")}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] transition duration-200 hover:border-white/16 hover:text-[var(--accent)]"
+          >
+            ← All evaluations
+          </button>
+          {isComplete ? (
+            <button
+              type="button"
+              onClick={() => handleExportReport(evaluation.id)}
+              className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(24,24,27,0.94),rgba(12,12,14,0.94))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text)] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_14px_30px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)]/45 hover:text-[var(--accent)] hover:shadow-[0_0_24px_rgba(79,70,229,0.18)]"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              <span aria-hidden="true">⇩</span>
+              Export report
+            </button>
+          ) : null}
+        </div>
 
         <div className="mt-6 flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">

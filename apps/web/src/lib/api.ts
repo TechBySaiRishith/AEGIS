@@ -145,6 +145,14 @@ export async function getEvaluation(id: string): Promise<Evaluation> {
   return normalizeEvaluation(payload);
 }
 
+export function getEvaluationReportHtmlUrl(id: string, options?: { autoPrint?: boolean }): string {
+  const url = new URL(`${API_BASE}/api/evaluations/${id}/report/html`);
+  if (options?.autoPrint) {
+    url.searchParams.set("print", "1");
+  }
+  return url.toString();
+}
+
 export function subscribeToEvents(id: string, onEvent: (event: SSEEvent) => void): () => void {
   const eventSource = new EventSource(`${API_BASE}/api/evaluations/${id}/events`);
   const eventTypes: SSEEvent["type"][] = ["status", "progress", "finding", "verdict", "error", "complete"];
