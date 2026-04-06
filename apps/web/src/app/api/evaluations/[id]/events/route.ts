@@ -5,7 +5,7 @@
  * browser receives events immediately.
  */
 
-const API_INTERNAL = process.env.API_INTERNAL_URL || "http://localhost:3001";
+import { API_INTERNAL_URL } from "@/lib/env.server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const upstream = `${API_INTERNAL}/api/evaluations/${id}/events`;
+  const upstream = `${API_INTERNAL_URL}/api/evaluations/${id}/events`;
 
   const upstreamRes = await fetch(upstream, {
     headers: { Accept: "text/event-stream" },
