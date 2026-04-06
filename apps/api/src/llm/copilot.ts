@@ -103,7 +103,13 @@ export class CopilotProvider implements LLMProvider {
 
         const tokenLimit = options?.maxTokens ?? 4096;
 
-        const body = JSON.stringify({
+        // Guard: truncate user message if serialized body exceeds API limit.
+        // Copilot API rejects requests with "Too many parameter values" when
+        // the body is too large.  JSON-encoding of code with escapes can
+        // easily 2× the raw character count.
+        const MAX_BODY_BYTES = 80_000;
+
+        let requestBody = JSON.stringify({
           model: this.model,
           messages,
           max_completion_tokens: tokenLimit,
@@ -111,30 +117,30 @@ export class CopilotProvider implements LLMProvider {
           stream: false,
         });
 
-        // Guard: truncate user message if serialized body exceeds API limit.
-        // Copilot API rejects requests with "Too many parameter values" when
-        // the body is too large.  JSON-encoding of code with escapes can
-        // easily 2× the raw character count.
-        const MAX_BODY_BYTES = 100_000;
-        if (body.length > MAX_BODY_BYTES) {
-          const excess = body.length - MAX_BODY_BYTES;
+        if (requestBody.length > MAX_BODY_BYTES) {
           const userMsg = messages[messages.length - 1];
-          const trimLength = Math.max(1000, userMsg.content.length - excess - 500);
-          userMsg.content =
-            userMsg.content.slice(0, trimLength) +
-            "\n\n… [prompt truncated to fit API limits — analyse what is provided above]";
-          // Re-serialize with truncated message
-          const trimmedBody = JSON.stringify({
-            model: this.model,
-            messages,
-            max_completion_tokens: tokenLimit,
-            temperature: options?.temperature ?? 0.3,
-            stream: false,
-          });
-          var requestBody = trimmedBody;
-        } else {
-          var requestBody = body;
+          if (userMsg?.role === "user") {
+            const excess = requestBody.length - MAX_BODY_BYTES;
+            const trimTo = Math.max(500, userMsg.content.length - excess - 2000);
+            console.warn(
+              `[copilot] Body ${requestBody.length} bytes exceeds ${MAX_BODY_BYTES} limit — trimming user message from ${userMsg.content.length} to ${trimTo} chars`,
+            );
+            userMsg.content =
+              userMsg.content.slice(0, trimTo) +
+              "\n\n[Content truncated to fit API limits — analyse what is provided above]";
+            requestBody = JSON.stringify({
+              model: this.model,
+              messages,
+              max_completion_tokens: tokenLimit,
+              temperature: options?.temperature ?? 0.3,
+              stream: false,
+            });
+          }
         }
+
+        console.log(
+          `[copilot] Request body: ${requestBody.length} bytes, model: ${this.model}`,
+        );
 
         const controller = new AbortController();
         const timer = setTimeout(

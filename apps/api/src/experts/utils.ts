@@ -8,15 +8,15 @@ import type { ApplicationProfile, FileNode } from "@aegis/shared";
 // prompt payloads within LLM context limits
 // ═══════════════════════════════════════════════════════════════
 
-const MAX_CODE_EXCERPTS_TOTAL = 12_000;
-const MAX_CODE_EXCERPT_PER_FILE = 6_000;
+const MAX_CODE_EXCERPTS_TOTAL = 8_000;
+const MAX_CODE_EXCERPT_PER_FILE = 4_000;
 const MAX_DESCRIPTION_CHARS = 2_000;
-const MAX_DEPENDENCIES_COUNT = 50;
-const MAX_FILES_IN_STRUCTURE = 100;
-const MAX_ROUTES_COUNT = 30;
-const MAX_ENV_VARS_COUNT = 30;
-const MAX_DATA_HANDLING_COUNT = 20;
-const MAX_PROMPT_CHARS = 40_000; // ~40KB — leaves headroom after JSON encoding
+const MAX_DEPENDENCIES_COUNT = 40;
+const MAX_FILES_IN_STRUCTURE = 80;
+const MAX_ROUTES_COUNT = 25;
+const MAX_ENV_VARS_COUNT = 25;
+const MAX_DATA_HANDLING_COUNT = 15;
+const MAX_PROMPT_CHARS = 25_000; // ~25KB — Copilot API rejects large payloads
 
 const BINARY_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",

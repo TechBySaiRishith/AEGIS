@@ -21,8 +21,8 @@ import { SENTINEL_SYSTEM_PROMPT, buildSentinelUserPrompt } from "./prompts.js";
 // ─── Constants ───────────────────────────────────────────────
 
 const MODULE_META = EXPERT_MODULES.sentinel;
-const MAX_CODE_BYTES = 30 * 1024; // 30 KB — leaves room for profile data + excerpts
-const MAX_INDIVIDUAL_FILE = 15_000; // 15 KB per file
+const MAX_CODE_BYTES = 15 * 1024; // 15 KB — reduced to prevent Copilot API payload overflow
+const MAX_INDIVIDUAL_FILE = 8_000; // 8 KB per file
 
 /** Extensions we consider analysable source code */
 const SOURCE_EXTENSIONS = new Set([
@@ -302,6 +302,9 @@ export class SentinelAnalyzer implements ExpertModule {
       // 3. Build prompt (capped to safe size)
       const rawPrompt = buildSentinelUserPrompt(safeApp, codeSnippets);
       const userPrompt = capPromptSize(rawPrompt);
+      console.log(
+        `[sentinel] System prompt: ${SENTINEL_SYSTEM_PROMPT.length} chars, User prompt: ${userPrompt.length} chars (raw: ${rawPrompt.length}), Code snippets: ${Object.keys(codeSnippets).length} files`,
+      );
 
       // 4. Call LLM
       const response = await llm.complete(userPrompt, {
