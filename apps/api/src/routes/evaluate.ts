@@ -126,13 +126,18 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
       },
     ];
 
-    // Announce each expert starting
+    // Announce each expert starting & set initial expert status in DB
+    updateEvaluationStatus(evaluationId, "sentinel_running");
     for (const expert of experts) {
       pushEvent(evaluationId, "status", {
         status: expert.statusKey,
         message: `${expert.id} analysis starting…`,
       });
     }
+
+    // Track completion count so the DB status advances as experts finish
+    let expertsCompleted = 0;
+    const expertStatusStages: EvaluationStatus[] = ["sentinel_running", "watchdog_running", "guardian_running"];
 
     const results = await Promise.allSettled(
       experts.map(async (expert) => {
@@ -152,6 +157,11 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
           completedAt: assessment.completedAt,
           error: assessment.error,
         });
+
+        // Advance DB status as each expert completes (drives polling-based progress)
+        const stageStatus = expertStatusStages[Math.min(expertsCompleted, expertStatusStages.length - 1)];
+        expertsCompleted++;
+        updateEvaluationStatus(evaluationId, stageStatus);
 
         pushEvent(evaluationId, "progress", {
           module: expert.id,

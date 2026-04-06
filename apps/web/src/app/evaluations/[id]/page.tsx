@@ -744,11 +744,19 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
 }
 
 function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: SSEEvent[] }) {
+  const completedExperts = events.filter((e) => e.type === "progress").length;
   const currentStepIndex = Math.max(
     PIPELINE_STEPS.findIndex((step) => step.key === evaluation.status),
     0,
   );
-  const progress = Math.round(((currentStepIndex + 1) / PIPELINE_STEPS.length) * 100);
+
+  // When status is "analyzing" but experts are completing via SSE, advance progress
+  const effectiveStep =
+    evaluation.status === "analyzing" && completedExperts > 0
+      ? Math.min(currentStepIndex + completedExperts, PIPELINE_STEPS.length - 1)
+      : currentStepIndex;
+
+  const progress = Math.round(((effectiveStep + 1) / PIPELINE_STEPS.length) * 100);
   const recentEvents = events.slice(-8).reverse();
 
   return (
@@ -860,7 +868,7 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
               <div className="mt-2 text-xl font-semibold">Telemetry feed</div>
             </div>
             <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              {recentEvents.length} visible
+              {recentEvents.length ? `${recentEvents.length} visible` : "Connecting…"}
             </div>
           </div>
 

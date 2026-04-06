@@ -154,17 +154,51 @@ export function getEvaluationReportHtmlUrl(id: string, options?: { autoPrint?: b
 }
 
 export function subscribeToEvents(id: string, onEvent: (event: SSEEvent) => void): () => void {
-  const eventSource = new EventSource(`${API_BASE}/api/evaluations/${id}/events`);
+  let closed = false;
+  let retryCount = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let es: EventSource | null = null;
+  const maxRetries = 8;
   const eventTypes: SSEEvent["type"][] = ["status", "progress", "finding", "verdict", "error", "complete"];
 
-  eventTypes.forEach((type) => {
-    eventSource.addEventListener(type, (event) => parseEvent(event as MessageEvent<string>, onEvent));
-  });
+  function connect() {
+    if (closed) return;
+    es = new EventSource(`${API_BASE}/api/evaluations/${id}/events`);
 
-  eventSource.onmessage = (event) => parseEvent(event, onEvent);
-  eventSource.onerror = () => {
-    eventSource.close();
+    eventTypes.forEach((type) => {
+      es!.addEventListener(type, (event) => {
+        retryCount = 0;
+        parseEvent(event as MessageEvent<string>, onEvent);
+      });
+    });
+
+    es.onmessage = (event) => {
+      retryCount = 0;
+      parseEvent(event, onEvent);
+    };
+
+    es.onopen = () => {
+      retryCount = 0;
+    };
+
+    es.onerror = () => {
+      if (closed) return;
+      es?.close();
+      es = null;
+      retryCount++;
+      if (retryCount <= maxRetries) {
+        const delay = Math.min(1000 * 2 ** (retryCount - 1), 10_000);
+        retryTimer = setTimeout(connect, delay);
+      }
+    };
+  }
+
+  connect();
+
+  return () => {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    es?.close();
+    es = null;
   };
-
-  return () => eventSource.close();
 }
