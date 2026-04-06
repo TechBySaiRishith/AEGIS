@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@aegis/shared"],
 
+  // Disable built-in gzip — it buffers SSE (text/event-stream) responses,
+  // preventing real-time event delivery.  In production, compression should
+  // be handled by a reverse proxy (nginx / Cloudflare) that can selectively
+  // skip SSE routes.  See: https://nextjs.org/docs/app/api-reference/config/next-config-js/compress
+  compress: false,
+
   // Proxy /api requests to the Hono backend so everything runs on one port
   async rewrites() {
     const port = process.env.PORT || "3001";
