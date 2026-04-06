@@ -1,0 +1,58 @@
+{
+  "run_id": "sm-gpt5mini",
+  "evaluation_id": "eval_PW_FqiPZbIvN",
+  "status": "completed",
+  "models": {
+    "sentinel": "copilot/gpt-5-mini",
+    "watchdog": "copilot/gpt-5-mini",
+    "guardian": "copilot/gpt-5-mini",
+    "synthesizer": "copilot/gpt-5-mini"
+  },
+  "verdict": "REJECT",
+  "confidence": 0.32,
+  "reasoning": "Verdict: REJECT (32% confidence)\n\nModule Scores:\n  Sentinel (CWE/OWASP Web Application Security): 50/100 [Low risk] \u2014 1 info\n  Watchdog (OWASP LLM Top 10 / Cisco AI Threat Taxonomy): 99/100 [Info risk] \u2014 1 info\n  Guardian (NIST AI RMF / EU AI Act / UNICC Responsible AI): 37/100 [High risk] \u2014 1 critical, 3 high, 3 medium\n\nArbitration Triggers:\n  \u2022 REJECT trigger \u2014 critical findings in Guardian: [guardian-1] Autonomous content-moderation with minimal human oversight (high-risk)\n\nDisagreement Resolution:\n  \u26a0 Watchdog scored 99/100 (info risk) while Sentinel scored 50/100 (low risk) \u2014 \u039449 point divergence. Arbitration defers to the stricter assessment from Sentinel to maintain safety margins.\n  \u26a0 Risk-level conflict: Guardian rates high risk while Sentinel rates low risk on the same application. Council defers to Guardian's stricter assessment.\n  \u26a0 Watchdog scored 99/100 (info risk) while Guardian scored 37/100 (high risk) \u2014 \u039462 point divergence. Arbitration defers to the stricter assessment from Guardian to maintain safety margins.\n\nConfidence Factors:\n  \u2022 -30% confidence: 3 disagreement(s) between modules\n  \u2022 Base score: 62/100 average across 3 module(s)\n\n--- LLM-Enhanced Council Narrative ---\nOverall the assessment shows a clear, shared blocker: all modules cannot complete definitive technical review because the repository, dependency manifests, and deployment/config artifacts were not provided. Sentinel and Watchdog explicitly call out the missing source and recommend supplying the codebase and CI/dependency scans; Guardian amplifies this from a regulatory perspective, noting the absence of governance and privacy artifacts that should be present in the repo. Together these agreements establish that the next immediate action is to produce a complete, sanitized artifact bundle (code, manifests, IaC, model cards, and CI scan outputs) to enable targeted technical and compliance reviews.\n\nKey conflicts and remaining gaps persist after that step. Watchdog's scan found no LLM integrations (informational), which narrows OWASP-LLM-specific concerns, but Guardian's high-risk classification for autonomous content-moderation (ResNet/BERT) remains because governance, human-in-the-loop controls, and auditability are missing. This represents a disagreement in risk focus \u2014 LLM-specific risk vs. system-level regulatory harms \u2014 and means remediation planning must address both technical security (auth, secrets, input validation, model robustness) and governance/regulatory controls (human oversight, DPIA, model cards, logging). A specific gap to add to the remediation backlog is adversarial robustness testing for the CV/NLP pipelines (evasion and poisoning scenarios), which none of the modules adequately covered and which is critical for a media-verification product operating in adversarial contexts.",
+  "modules": {
+    "sentinel": {
+      "model": "gpt-5-mini",
+      "status": "completed",
+      "score": 50,
+      "risk_level": "low",
+      "findings_count": 1,
+      "top_findings": [
+        "Insufficient source code provided for static analysis of Flask/Python VeriMedia AI"
+      ],
+      "summary": "No source code or dependency manifests were provided for VeriMedia AI (described as a Flask/Python application using ResNet/BERT, PostgreSQL, and AWS). Without repository files (app entrypoints, requirements, config, Docker/IaC), Sentinel cannot perform code-level static analysis or identify concrete vulnerabilities in authentication, file upload handling, secret management, or database queries.",
+      "recommendation": "1) Provide the full code repository (app entrypoints, requirements.txt, Dockerfile, IaC) so static analysis can locate exact issues (ties to the 'Insufficient source code' finding). 2) Add automated SAST and dependency-audit steps to CI (semgrep, bandit, pip-audit/safety) and supply scan results for review. 3) Share sanitized configuration and deployment manifests (or a staging URL) so dynamic tests (OWASP ZAP, file-upload fuzzing) can be run; this will enable verification of auth, upload, and r"
+    },
+    "watchdog": {
+      "model": "gpt-5-mini",
+      "status": "completed",
+      "score": 99,
+      "risk_level": "info",
+      "findings_count": 1,
+      "top_findings": [
+        "No LLM usage detected in provided artifacts \u2014 VeriMedia AI (no source code available)"
+      ],
+      "summary": "VeriMedia AI \u2014 Application profile shows CV (ResNet) and NLP (BERT) models for media verification. No source code was provided for analysis and no explicit LLM (e.g., OpenAI GPT-4o, Anthropic Claude, LangChain RetrievalQA, Cohere, HuggingFace Inference) integrations were identified from the supplied materials. This report is informational: it documents the absence of detectable LLM integrations and provides exact scanning steps to confirm whether any hidden LLM usage exists.",
+      "recommendation": "Top 3 priority remediation actions (immediate):\n1) Repository & infra inventory: Run automated scans (grep, dependency parse, gitleaks/trufflehog) across the entire repository, CI/CD pipelines, Dockerfiles, and IaC for LLM SDKs (openai, anthropic, cohere, huggingface_hub), embeddings stores (pinecone, weaviate, chromadb), and environment secrets (OPENAI_API_KEY, ANTHROPIC_API_KEY, HUGGINGFACE_TOKEN). If any are found, submit those files for a full OWASP-LLM Top 10 assessment.\n2) Secrets & runtim"
+    },
+    "guardian": {
+      "model": "gpt-5-mini",
+      "status": "completed",
+      "score": 37,
+      "risk_level": "high",
+      "findings_count": 7,
+      "top_findings": [
+        "Autonomous content-moderation with minimal human oversight (high-risk)",
+        "No governance documentation, model cards, or privacy notices present",
+        "No bias/fairness testing for ResNet (deepfake) or BERT (NLP) pipelines"
+      ],
+      "summary": "VeriMedia AI is an AI-powered media verification platform with deep learning (ResNet) and NLP (BERT) components that performs autonomous content moderation and public-facing fact-checking. The repository contains no governance artifacts (no README, model cards, privacy policy, or DPIA) and the system operates with minimal human oversight and no documented bias testing, privacy controls, provenance, or audit logging \u2014 creating substantial regulatory and rights-impact risk.",
+      "recommendation": "1) Immediately introduce human oversight and emergency controls (tie to finding 'Autonomous content-moderation...') \u2014 publish docs/human-oversight.md, add API kill-switch (routes/admin/kill_switch), and require human_verification_token for removals (EUAI-OVERSIGHT, NIST-GOV-1). 2) Publish core governance documentation within 30 days (README.md, docs/model-card.md for ResNet/BERT, docs/privacy-policy.md, docs/dpia.md) and pin model versions with checksums (NIST-MAP-1.1, EUAI-DATA-GOVERNANCE, UNIC"
+    }
+  },
+  "started_at": "2026-04-05T21:49:48Z",
+  "completed_at": "2026-04-05T21:52:49Z",
+  "duration_seconds": 181,
+  "error": null
+}

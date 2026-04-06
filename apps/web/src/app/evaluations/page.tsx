@@ -152,16 +152,19 @@ export default function EvaluationsPage() {
           <div className="mx-auto grid h-[4.5rem] w-[4.5rem] place-items-center rounded-[1.75rem] border border-[var(--accent)]/20 bg-[var(--accent)]/10 text-3xl text-[var(--accent)] shadow-[0_0_40px_rgba(34,211,238,0.12)]">
             ⌁
           </div>
-          <h2 className="mt-6 text-2xl font-semibold">No evaluations in the ledger</h2>
+          <h2 className="mt-6 text-2xl font-semibold">No evaluations yet</h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--text-muted)]">
-            Submit your first application to populate the command center with expert assessments,
-            council verdicts, and remediation-ready findings.
+            Submit an AI application for review from the homepage. Try evaluating{" "}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-[var(--accent)]">
+              https://github.com/FlashCarrot/VeriMedia
+            </code>{" "}
+            to see the full Council of Experts pipeline in action.
           </p>
           <Link
             href="/"
-            className="mt-8 inline-flex rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 px-5 py-3 text-sm font-semibold text-[var(--accent)] transition duration-200 hover:bg-[var(--accent)]/14"
+            className="mt-8 inline-flex items-center gap-2 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 px-5 py-3 text-sm font-semibold text-[var(--accent)] transition duration-200 hover:bg-[var(--accent)]/14"
           >
-            Start the first review
+            Go to homepage →
           </Link>
         </div>
       ) : (

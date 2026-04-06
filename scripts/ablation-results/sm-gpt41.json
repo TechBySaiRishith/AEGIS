@@ -1,0 +1,54 @@
+{
+  "run_id": "sm-gpt41",
+  "evaluation_id": "eval_pD74VNhlqRSJ",
+  "status": "completed",
+  "models": {
+    "sentinel": "copilot/gpt-4.1",
+    "watchdog": "copilot/gpt-4.1",
+    "guardian": "copilot/gpt-4.1",
+    "synthesizer": "copilot/gpt-4.1"
+  },
+  "verdict": "REJECT",
+  "confidence": 0.3,
+  "reasoning": "Verdict: REJECT (30% confidence)\n\nModule Scores:\n  Sentinel (CWE/OWASP Web Application Security): 50/100 [Info risk] \u2014 1 info\n  Watchdog (OWASP LLM Top 10 / Cisco AI Threat Taxonomy): 100/100 [Info risk] \u2014 1 info\n  guardian (unknown): 0/100 [Critical risk] \u2014 no findings\n\nArbitration Triggers:\n  \u2022 REJECT trigger \u2014 score below 30: guardian (0/100)\n\nDisagreement Resolution:\n  \u26a0 Watchdog scored 100/100 (info risk) while Sentinel scored 50/100 (info risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from Sentinel to maintain safety margins.\n  \u26a0 Sentinel scored 50/100 (info risk) while guardian scored 0/100 (critical risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n  \u26a0 Watchdog scored 100/100 (info risk) while guardian scored 0/100 (critical risk) \u2014 \u0394100 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n\nConfidence Factors:\n  \u2022 -30% confidence: 3 disagreement(s) between modules\n  \u2022 -15% confidence: 1 module(s) failed to complete\n  \u2022 Base score: 75/100 average across 2 module(s)\n\n--- LLM-Enhanced Council Narrative ---\nThe overall risk posture for VeriMedia AI is indeterminate due to the absence of source code and configuration files, as noted by both Sentinel and Watchdog. Both modules agree that this lack of data precludes a meaningful security or AI-specific risk assessment, reinforcing the need for greater transparency and documentation before any conclusions can be drawn about the application's safety.\n\nA key conflict arises between Watchdog and Guardian: while Watchdog confidently asserts there are no LLM-specific risks and assigns a perfect score, Guardian fails the application outright with a critical risk rating but provides no supporting findings or rationale. This discrepancy highlights a breakdown in risk evaluation, particularly in governance and compliance, where Guardian's lack of detail leaves stakeholders without actionable guidance.\n\nAdditionally, there is a notable gap in the governance and compliance assessment. Guardian's failure to provide any findings or recommendations means that critical aspects of NIST AI RMF compliance, ethical considerations, and risk management remain unaddressed. Until source code and documentation are provided and a full governance review is conducted, the application's true risk profile cannot be reliably established.",
+  "modules": {
+    "sentinel": {
+      "model": "gpt-4.1",
+      "status": "completed",
+      "score": 50,
+      "risk_level": "info",
+      "findings_count": 1,
+      "top_findings": [
+        "Insufficient Data for Security Analysis"
+      ],
+      "summary": "No security posture assessment can be made for VeriMedia AI due to the absence of source code or configuration files. Key technologies such as Flask, Python, and PostgreSQL are mentioned, but no concrete implementation details are available for analysis.",
+      "recommendation": "1. Provide the full source code for VeriMedia AI to enable a thorough security review.\n2. Include configuration files and deployment scripts for infrastructure assessment.\n3. Ensure all dependencies and third-party integrations are documented for vulnerability scanning."
+    },
+    "watchdog": {
+      "model": "gpt-4.1",
+      "status": "completed",
+      "score": 100,
+      "risk_level": "info",
+      "findings_count": 1,
+      "top_findings": [
+        "No LLM or generative AI integrations detected in VeriMedia AI source code"
+      ],
+      "summary": "VeriMedia AI is a media verification platform using deep learning (ResNet, BERT) for image, video, and text analysis. No LLM or generative AI technologies (e.g., GPT, Claude, LangChain) were detected in the application profile or available code.",
+      "recommendation": "1. If LLMs are integrated in the future, conduct a full OWASP-LLM Top 10 risk assessment. 2. Monitor for any prompt-based or generative AI features in future code changes. 3. Maintain separation between user input and any future AI prompt construction."
+    },
+    "guardian": {
+      "model": null,
+      "status": "failed",
+      "score": null,
+      "risk_level": null,
+      "findings_count": 0,
+      "top_findings": [],
+      "summary": "",
+      "recommendation": ""
+    }
+  },
+  "started_at": "2026-04-05T21:44:25Z",
+  "completed_at": "2026-04-05T21:44:55Z",
+  "duration_seconds": 30,
+  "error": null
+}

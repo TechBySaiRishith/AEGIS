@@ -316,16 +316,17 @@ docker compose down && docker compose up --build
 
 ## Quick Start — Local Development
 
-**Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io/)
+**Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io/) (if you don't have pnpm: `npm install -g pnpm`)
 
 ```bash
-# 1. Install dependencies
-pnpm install
+# One-command setup (installs pnpm if needed, then dependencies + .env)
+bash setup.sh
 
-# 2. Create environment file
+# Or manually:
+pnpm install
 cp .env.example .env
 
-# 3. Start API server and Web UI in development mode
+# Start API server and Web UI in development mode
 pnpm dev
 ```
 

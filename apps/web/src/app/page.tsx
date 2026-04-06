@@ -6,11 +6,13 @@ import { EXPERT_MODULES } from "@aegis/shared";
 import type { InputType } from "@aegis/shared";
 import { submitEvaluation } from "@/lib/api";
 
+const GITHUB_URL_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+/;
+
 const INPUT_TYPES: { value: InputType; label: string; placeholder: string; hint: string }[] = [
   {
     value: "github_url",
     label: "GitHub URL",
-    placeholder: "https://github.com/org/repo",
+    placeholder: "https://github.com/FlashCarrot/VeriMedia",
     hint: "Repository or branch to inspect",
   },
   {
@@ -58,12 +60,22 @@ export default function Home() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   const currentInput = INPUT_TYPES.find((type) => type.value === inputType) ?? INPUT_TYPES[0];
 
+  const validateSource = (value: string): boolean => {
+    if (inputType === "github_url" && value.trim() && !GITHUB_URL_RE.test(value.trim())) {
+      setUrlError("Please enter a valid GitHub repository URL (e.g., https://github.com/owner/repo)");
+      return false;
+    }
+    setUrlError(null);
+    return true;
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!source.trim()) return;
+    if (!source.trim() || !validateSource(source)) return;
 
     setLoading(true);
     setError(null);
@@ -175,11 +187,20 @@ export default function Home() {
                   <input
                     type="text"
                     value={source}
-                    onChange={(event) => setSource(event.target.value)}
+                    onChange={(event) => {
+                      setSource(event.target.value);
+                      if (urlError) validateSource(event.target.value);
+                    }}
+                    onBlur={() => validateSource(source)}
                     placeholder={currentInput.placeholder}
                     required
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60"
+                    className={`w-full rounded-2xl border bg-black/30 px-4 py-3.5 text-sm text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60 ${
+                      urlError ? "border-[var(--reject)]/60" : "border-white/10"
+                    }`}
                   />
+                  {urlError ? (
+                    <p className="mt-2 text-xs text-[var(--reject)]">{urlError}</p>
+                  ) : null}
                 </div>
 
                 <div>
@@ -205,7 +226,7 @@ export default function Home() {
 
               <button
                 type="submit"
-                disabled={loading || !source.trim()}
+                disabled={loading || !source.trim() || !!urlError}
                 className="group relative inline-flex w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--accent)]/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.95),rgba(8,145,178,0.88))] px-4 py-3.5 text-sm font-semibold text-[var(--background)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-55"
               >
                 <span className="absolute inset-y-0 left-0 w-24 animate-scan bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)] opacity-70" />
