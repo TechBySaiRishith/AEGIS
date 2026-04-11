@@ -79,6 +79,108 @@ export async function analyzeApplication(
 
 // ─── Framework Detection ─────────────────────────────────────
 
+/**
+ * Pure helper: detect a JS/TS framework from a parsed package.json object.
+ * Returns null if no recognised framework is found. Exported for unit tests.
+ */
+export function detectFrameworkFromPackageJson(pkg: unknown): string | null {
+  if (!pkg || typeof pkg !== "object") return null;
+  const p = pkg as { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown> };
+  const allDeps = { ...(p.dependencies ?? {}), ...(p.devDependencies ?? {}) };
+  if ("next" in allDeps) return "Next.js";
+  if ("express" in allDeps) return "Express";
+  if ("fastify" in allDeps) return "Fastify";
+  if ("hono" in allDeps) return "Hono";
+  if ("react" in allDeps) return "React";
+  if ("vue" in allDeps) return "Vue";
+  if ("angular" in allDeps) return "Angular";
+  return null;
+}
+
+/**
+ * Pure helper: detect a Python framework from the raw text of a requirements.txt file.
+ * Returns null if no recognised framework is found. Exported for unit tests.
+ */
+export function detectFrameworkFromRequirementsTxt(content: string): string | null {
+  const lower = content.toLowerCase();
+  if (lower.includes("flask")) return "Flask";
+  if (lower.includes("django")) return "Django";
+  if (lower.includes("fastapi")) return "FastAPI";
+  if (lower.includes("streamlit")) return "Streamlit";
+  return null;
+}
+
+/**
+ * Pure helper: parse a requirements.txt text blob into a list of dependency names.
+ * Strips version specifiers, comments, and extras. Exported for unit tests.
+ */
+export function parseRequirementsTxt(content: string): string[] {
+  const deps: string[] = [];
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("-")) continue;
+    const name = trimmed.split(/[>=<!~\s\[]/)[0];
+    if (name) deps.push(name.toLowerCase());
+  }
+  return deps;
+}
+
+/**
+ * Pure helper: extract AI integration types from a list of {path, content} source files
+ * and a dependency list. Returns de-duplicated AIIntegration records (without system prompts).
+ * Exported for unit tests. Mirrors the logic of {@link detectAIIntegrations} without any fs access.
+ */
+export function extractAIIntegrationsFromSources(
+  deps: string[],
+  sources: Array<{ path: string; content: string }>,
+): AIIntegration[] {
+  const integrations: AIIntegration[] = [];
+  const depsSet = new Set(deps.map((d) => d.toLowerCase()));
+  for (const pattern of AI_PATTERNS) {
+    const depMatch = pattern.depNames.some((d) => depsSet.has(d.toLowerCase()));
+    const matchingFiles: string[] = [];
+    for (const src of sources) {
+      for (const re of pattern.importPatterns) {
+        // Clone regex per call to avoid lastIndex state on /g flagged regexes
+        const r = new RegExp(re.source, re.flags);
+        if (r.test(src.content)) {
+          matchingFiles.push(src.path);
+          break;
+        }
+      }
+    }
+    if (depMatch || matchingFiles.length > 0) {
+      integrations.push({
+        type: pattern.type,
+        description: pattern.description,
+        files: matchingFiles,
+      });
+    }
+  }
+  return integrations;
+}
+
+/**
+ * Pure helper: aggregate file and line counts from an in-memory list of
+ * {name, content} entries (e.g. a simulated repo). Mirrors the behaviour of
+ * {@link countFilesAndLines} without touching the filesystem.
+ */
+export function aggregateFileCounts(
+  entries: Array<{ name: string; content: string }>,
+): { totalFiles: number; totalLines: number } {
+  let totalFiles = 0;
+  let totalLines = 0;
+  for (const entry of entries) {
+    if (shouldSkip(entry.name)) continue;
+    totalFiles++;
+    const ext = path.extname(entry.name).toLowerCase();
+    if (LANG_MAP[ext] || COUNTABLE_EXTS.has(ext)) {
+      totalLines += entry.content.split("\n").length;
+    }
+  }
+  return { totalFiles, totalLines };
+}
+
 const FRAMEWORK_SIGNALS: Array<{
   name: string;
   requires: string[];
