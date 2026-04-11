@@ -45,11 +45,13 @@ docker compose up --build
 
 Wait ~30 seconds for health checks to pass. You'll see log output from both the API and web services.
 
+> **Port note:** Docker exposes a single port — **5555** — where the Next.js web server serves the UI and proxies `/api/*` to the internal API. All URLs in this guide use `5555`. If you are running in local-dev mode (`pnpm dev`) instead of Docker, substitute `5555` → `3001` for API calls and `5555` → `3000` for the web UI.
+
 ### Verify It's Running
 
 ```bash
 # Health check
-curl http://localhost:3001/api/health
+curl http://localhost:5555/api/health
 ```
 
 Expected output:
@@ -64,7 +66,7 @@ Expected output:
 
 ### Open the Dashboard
 
-Navigate to **[http://localhost:3000](http://localhost:3000)** in your browser.
+Navigate to **[http://localhost:5555](http://localhost:5555)** in your browser.
 
 ---
 
@@ -113,8 +115,8 @@ Verify that the health check shows `anthropic: { "available": true }`.
 
 ### Via the Web Dashboard
 
-1. Open **[http://localhost:3000](http://localhost:3000)**
-2. Enter a GitHub repository URL (e.g., `https://github.com/vercel/ai-chatbot`)
+1. Open **[http://localhost:5555](http://localhost:5555)**
+2. Enter a GitHub repository URL (e.g., `https://github.com/FlashCarrot/VeriMedia`)
 3. Optionally add a description
 4. Click **Evaluate**
 5. Watch the real-time progress on the evaluation page
@@ -124,12 +126,12 @@ Verify that the health check shows `anthropic: { "available": true }`.
 
 ```bash
 # Start an evaluation
-curl -X POST http://localhost:3001/api/evaluate \
+curl -X POST http://localhost:5555/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{
     "inputType": "github_url",
-    "source": "https://github.com/vercel/ai-chatbot",
-    "description": "Vercel AI Chatbot — Next.js chatbot using AI SDK"
+    "source": "https://github.com/FlashCarrot/VeriMedia",
+    "description": "VeriMedia — multimodal media-verification LLM pipeline"
   }'
 ```
 
@@ -137,13 +139,13 @@ Save the `evaluationId` from the response, then:
 
 ```bash
 # Check status (poll until status is "completed")
-curl http://localhost:3001/api/evaluations/<evaluationId>
+curl http://localhost:5555/api/evaluations/<evaluationId>
 
 # Get JSON report
-curl http://localhost:3001/api/evaluations/<evaluationId>/report
+curl http://localhost:5555/api/evaluations/<evaluationId>/report
 
 # View HTML report in browser
-open "http://localhost:3001/api/evaluations/<evaluationId>/report/html"
+open "http://localhost:5555/api/evaluations/<evaluationId>/report/html"
 ```
 
 ### Suggested Test Repositories
@@ -274,8 +276,7 @@ Confidence = mean(module scores) / 100. Reduced by 0.15 for each module that fai
 
 ```bash
 # Check for port conflicts
-lsof -i :3000
-lsof -i :3001
+lsof -i :5555
 
 # Rebuild from scratch
 docker compose down -v
@@ -303,8 +304,8 @@ COPILOT_GITHUB_TOKEN=ghu_...
 
 ### Frontend Shows Blank Page
 
-- Verify the web container is running: `docker compose ps`
-- Check that `NEXT_PUBLIC_API_URL=http://localhost:3001` is set in the web container
+- Verify the container is running: `docker compose ps`
+- In Docker the web server proxies `/api/*` internally, so you should not need to set `NEXT_PUBLIC_API_URL`. If you customized it, make sure it points at `http://localhost:5555`.
 - Check browser console for CORS errors
 
 ### "Evaluation is not completed" When Requesting Report
@@ -312,7 +313,7 @@ COPILOT_GITHUB_TOKEN=ghu_...
 Reports are only available after the evaluation reaches `"completed"` status. Check the evaluation status first:
 
 ```bash
-curl http://localhost:3001/api/evaluations/<id>
+curl http://localhost:5555/api/evaluations/<id>
 ```
 
 If `status` is `"failed"`, check the `error` field for the reason.

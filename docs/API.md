@@ -2,9 +2,11 @@
 
 Complete API reference for the AEGIS AI Safety Lab backend.
 
-**Base URL:** `http://localhost:3001`
+**Base URL:**
+- Local-dev mode (`pnpm dev`): `http://localhost:3001`
+- Docker mode (`pnpm docker:up`): `http://localhost:5555` — the Next.js web server proxies `/api/*` to the internal API
 
-All endpoints are prefixed with `/api/`. The API uses JSON for request and response bodies except where noted (SSE, HTML).
+All endpoints are prefixed with `/api/`. The API uses JSON for request and response bodies except where noted (SSE, HTML). Every example below uses the local-dev port `3001`; substitute `5555` if you are on Docker.
 
 ---
 
