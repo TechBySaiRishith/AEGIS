@@ -103,7 +103,7 @@ async function readKeyFiles(
 }
 
 /** Build a priority-ordered list of files from the ApplicationProfile */
-function buildPriorityList(app: ApplicationProfile): string[] {
+export function buildPriorityList(app: ApplicationProfile): string[] {
   const files: string[] = [];
 
   // 1. Entry points (highest priority)
@@ -194,7 +194,7 @@ async function discoverFiles(
 
 // ─── LLM response parsing ────────────────────────────────────
 
-interface LLMFinding {
+export interface LLMFinding {
   title?: string;
   severity?: string;
   category?: string;
@@ -228,7 +228,7 @@ function parseRiskLevel(raw: unknown): Severity {
 }
 
 /** Convert the raw LLM JSON into typed Finding[] */
-function parseFindings(raw: LLMFinding[]): Finding[] {
+export function parseFindings(raw: LLMFinding[]): Finding[] {
   return raw.map((f, i) => {
     const evidence: Evidence[] = [];
 
@@ -255,7 +255,7 @@ function parseFindings(raw: LLMFinding[]): Finding[] {
 }
 
 /** Compute a score from findings — matches Sentinel's security-domain rubric */
-function computeScore(findings: Finding[]): number {
+export function computeScore(findings: Finding[]): number {
   let score = 100;
   for (const f of findings) {
     switch (f.severity) {
@@ -270,7 +270,7 @@ function computeScore(findings: Finding[]): number {
 }
 
 /** Determine risk level from findings */
-function deriveRiskLevel(findings: Finding[]): Severity {
+export function deriveRiskLevel(findings: Finding[]): Severity {
   const severities = new Set(findings.map((f) => f.severity));
   if (severities.has("critical")) return "critical";
   if (severities.has("high")) return "high";

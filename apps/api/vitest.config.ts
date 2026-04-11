@@ -61,6 +61,12 @@ export default defineConfig({
           branches: 73,
           functions: 95,
         },
+        "src/experts/sentinel/analyzer.ts": {
+          lines: 58,
+          statements: 58,
+          branches: 74,
+          functions: 78,
+        },
       },
     },
   },
