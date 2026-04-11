@@ -245,7 +245,23 @@ function parseRiskLevel(raw: string | undefined): Severity {
   return parseSeverity(raw);
 }
 
-function parseFindings(raw: RawFinding[]): Finding[] {
+/**
+ * Returns true when the snippet is a single-line comment in a common
+ * language's comment syntax — these are LLM-hallucinated descriptions
+ * (e.g. `# LLM response returned without schema validation`) rather
+ * than real code, so we reject them.
+ *
+ * Multi-line snippets that happen to start with a comment are preserved:
+ * real code blocks often begin with a documentation comment.
+ */
+function looksLikeSynthesizedComment(snippet: string): boolean {
+  const trimmed = snippet.trim();
+  if (!/^(#|\/\/|\/\*)/.test(trimmed)) return false;
+  if (trimmed.includes("\n")) return false;
+  return true;
+}
+
+export function parseFindings(raw: RawFinding[]): Finding[] {
   return raw.map((f, idx) => {
     const evidence: Evidence[] = [];
     if (f.filePath) {
@@ -257,13 +273,23 @@ function parseFindings(raw: RawFinding[]): Finding[] {
       });
     }
 
+    // Drop Evidence entries with empty snippets or synthesized single-line
+    // comment snippets — both are symptoms of the LLM hallucinating rather
+    // than grounding its finding in real code.
+    const filteredEvidence = evidence.filter(
+      (e: Evidence) =>
+        !!e.snippet &&
+        e.snippet.trim().length > 0 &&
+        !looksLikeSynthesizedComment(e.snippet),
+    );
+
     return {
       id: `watchdog-${idx + 1}`,
       title: f.title ?? `Finding ${idx + 1}`,
       severity: parseSeverity(f.severity),
       category: f.category ?? "Uncategorised",
       description: f.description ?? "",
-      evidence,
+      evidence: filteredEvidence,
       remediation: f.remediation,
       framework: f.framework,
     };
