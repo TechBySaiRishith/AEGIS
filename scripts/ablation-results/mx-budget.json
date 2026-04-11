@@ -1,6 +1,6 @@
 {
   "run_id": "mx-budget",
-  "evaluation_id": "eval_QeeS45r96-Y9",
+  "evaluation_id": "eval_zjdrutt-j26I",
   "status": "completed",
   "models": {
     "sentinel": "copilot/claude-haiku-4.5",
@@ -9,46 +9,50 @@
     "synthesizer": "copilot/gpt-5-mini"
   },
   "verdict": "REJECT",
-  "confidence": 0.3,
-  "reasoning": "Verdict: REJECT (30% confidence)\n\nModule Scores:\n  Sentinel (CWE/OWASP Web Application Security): 50/100 [High risk] \u2014 1 info\n  Watchdog (OWASP LLM Top 10 / Cisco AI Threat Taxonomy): 100/100 [Info risk] \u2014 1 info\n  guardian (unknown): 0/100 [Critical risk] \u2014 no findings\n\nArbitration Triggers:\n  \u2022 REJECT trigger \u2014 score below 30: guardian (0/100)\n\nDisagreement Resolution:\n  \u26a0 Watchdog scored 100/100 (info risk) while Sentinel scored 50/100 (high risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from Sentinel to maintain safety margins.\n  \u26a0 Sentinel scored 50/100 (high risk) while guardian scored 0/100 (critical risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n  \u26a0 Watchdog scored 100/100 (info risk) while guardian scored 0/100 (critical risk) \u2014 \u0394100 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n\nConfidence Factors:\n  \u2022 -30% confidence: 3 disagreement(s) between modules\n  \u2022 -15% confidence: 1 module(s) failed to complete\n  \u2022 Base score: 75/100 average across 2 module(s)\n\n--- LLM-Enhanced Council Narrative ---\nThe two completed assessments converge on a single dominant issue: absence of source code and artefacts prevents concrete analysis. Sentinel (sentinel-1-56dfc9f0) and Watchdog (watchdog-1) both call out missing repository/files as the primary blocker, leaving core application controls\u2014authentication, file-upload handling, database queries, dependency vulnerabilities, prompt templates or LLM integrations\u2014unverified. Because of this, specific technical vulnerabilities cannot be tied to code paths and remediation steps remain high-level recommendations.\n\nThere is a notable conflict in risk framing: Sentinel flags a high residual risk for the web application given the unknowns, while Watchdog labels its findings informational because no LLM usage was detected in the supplied artefacts. Compounding this, Guardian returned a critical score but provided no findings or governance evidence, creating an unfilled gap in compliance and risk-management assessment. Immediate next steps are clear: provide the complete source repository and deployment manifests, perform code-level SAST and dependency/SCA scans, conduct cloud configuration and secrets reviews, and obtain a governance-focused NIST AI RMF mapping (including logging, incident response, data governance, and human-in-the-loop controls). If LLMs are added or are present but not shown, apply Watchdog's prompt-injection and tool-control mitigations immediately.",
+  "confidence": 0.1,
+  "reasoning": "Verdict: REJECT (10% confidence)\n\nModule Scores:\n  Sentinel (CWE/OWASP Web Application Security): 50/100 [Low risk] \u2014 1 info\n  Watchdog (OWASP LLM Top 10 / Cisco AI Threat Taxonomy): 99/100 [Info risk] \u2014 1 info\n  Guardian (NIST AI RMF / EU AI Act / UNICC Responsible AI): 15/100 [Critical risk] \u2014 4 critical, 6 high, 4 medium\n\nArbitration Triggers:\n  \u2022 REJECT trigger \u2014 score below 30: Guardian (15/100)\n  \u2022 REJECT trigger \u2014 critical findings in Guardian: [guardian-1] No governance documentation; README.md missing; [guardian-2] No model cards for ResNet and BERT components; model provenance undocumented; [guardian-3] No documented bias testing or fairness evaluation for demographic-impacting AI; [guardian-4] Autonomous content moderation with minimal human oversight; no kill switches or escalation workflows\n\nDisagreement Resolution:\n  \u26a0 Watchdog scored 99/100 (info risk) while Sentinel scored 50/100 (low risk) \u2014 \u039449 point divergence. Arbitration defers to the stricter assessment from Sentinel to maintain safety margins.\n  \u26a0 Sentinel scored 50/100 (low risk) while Guardian scored 15/100 (critical risk) \u2014 \u039435 point divergence. Arbitration defers to the stricter assessment from Guardian to maintain safety margins.\n  \u26a0 Watchdog scored 99/100 (info risk) while Guardian scored 15/100 (critical risk) \u2014 \u039484 point divergence. Arbitration defers to the stricter assessment from Guardian to maintain safety margins.\n\nConfidence Factors:\n  \u2022 Base: 1/3 module(s) independently support REJECT \u2014 30% baseline conviction\n  \u2022 -30% confidence: 3 disagreement(s) between modules\n  \u2022 Average module score across 3 completed module(s): 55/100 (reported for context \u2014 not directly used in confidence calibration)\n\n--- LLM-Enhanced Council Narrative ---\nOverall, the three assessments consistently identify a foundational problem: absence of source materials blocks a confident technical review (sentinel-1-6be65112, watchdog-1), and multiple modules call out secrets/credential and data governance shortcomings (sentinel recommendations; watchdog secrets guidance; guardian-10 on DB controls). These agreements underscore that discovery (code, infra, keys) and basic security hygiene must come first before deeper audits.\nHowever, there are substantive conflicts in risk framing and scope. Sentinel's technical rating is relatively modest while guardian deems the product critically risky on governance, compliance, and human\u2011oversight grounds (guardian-4, guardian-1, guardian-8). Watchdog narrows LLM-specific risk (watchdog-1) and therefore deprioritises LLM guardrails, which conflicts with guardian's high\u2011risk classification that applies regardless of whether an LLM is present. Finally, notable gaps remain unaddressed by any single module: adversarial robustness for CV/NLP pipelines, operational monitoring and drift detection, and end\u2011to\u2011end ML supply\u2011chain assurances (SBOMs, signed images, CI/CD gating). Addressing these discovery, governance, security hygiene, and operational gaps should be the immediate next step before conciliating the differing risk severity judgements.",
   "modules": {
     "sentinel": {
       "model": "claude-haiku-4.5",
       "status": "completed",
       "score": 50,
-      "risk_level": "high",
+      "risk_level": "low",
       "findings_count": 1,
       "top_findings": [
-        "Insufficient Source Code Provided for Security Analysis"
+        "Insufficient source code provided for security analysis"
       ],
-      "summary": "VeriMedia AI is described as a Flask-based AI media verification platform with deep learning models, social media integration, and user-uploaded content processing \u2014 but no source code was provided for analysis. Sentinel cannot assess authentication, input validation, secrets management, file upload security, API security, or dependency vulnerabilities without actual code to review.",
-      "recommendation": "Submit the complete VeriMedia AI application source code for re-analysis. Prioritise Flask route definitions, file upload handlers, database queries, and third-party API integrations as these represent the highest-risk attack surfaces."
+      "summary": "VeriMedia AI is described as a Flask-based AI-powered media verification platform with deep learning, NLP, social media integration, and autonomous content moderation capabilities. However, no source code was provided for analysis, making a complete security assessment impossible.",
+      "recommendation": "Submit the full VeriMedia AI source code repository to enable comprehensive security analysis. Once code is available, priority areas will include: (1) authentication and authorization on all REST API endpoints, (2) input validation and injection prevention for user-uploaded content, (3) secrets and credential management in configuration and deployment, and (4) dependency vulnerability scanning."
     },
     "watchdog": {
       "model": "gpt-5-mini",
       "status": "completed",
-      "score": 100,
+      "score": 99,
       "risk_level": "info",
       "findings_count": 1,
       "top_findings": [
-        "No LLM/LLM-integration code detected in provided artefacts for VeriMedia AI"
+        "No LLM/LLM-integration code detected in provided source materials (ResNet/BERT-only ML stack referenced)"
       ],
-      "summary": "VeriMedia AI \u2014 scanned artefacts contained no accessible source files and no explicit LLM usage was detected in the provided application profile. The product uses ResNet and BERT for CV/NLP tasks (non-LLM). Without source code or file-level access, no concrete OWASP-LLM findings (e.g., OWASP-LLM01 prompt injection) could be identified or mapped to file paths.",
-      "recommendation": "Top 3 priority actions: 1) Provide the source files or repository (especially any modules that call OpenAI/Anthropic/Cohere, LangChain orchestration, prompt templates, RAG/retriever code, embedding storage and moderation/autonomy logic) so a line-by-line LLM risk assessment can be performed. 2) If you intend to add LLMs, implement prompt injection protections immediately: keep system prompts server-side, use parameterized prompt templates, output validators (JSON Schema/pydantic), and never conc"
+      "summary": "VeriMedia AI \u2014 profile indicates an ML stack (ResNet for CV, BERT for NLP) but no LLM integrations (GPT/Claude/Llama/etc.) were present in the supplied materials. No source code was provided for verification, so no concrete LLM-related code paths could be audited.",
+      "recommendation": "Top 3 priority remediation actions:\n1) Inventory and scan all code, containers, and infra for LLM usage: search for 'openai', 'anthropic', 'cohere', 'langchain', 'llamaindex', 'huggingface', 'Pinecone/Weaviate/Milvus', and environment variables like OPENAI_API_KEY. If found, treat those services as in-scope and run the checks below.  \n2) If any LLM endpoints are present, immediately implement guardrails: prevent prompt injection by using structured prompts/typed inputs, do not concatenate raw us"
     },
     "guardian": {
-      "model": null,
-      "status": "failed",
-      "score": null,
-      "risk_level": null,
-      "findings_count": 0,
-      "top_findings": [],
-      "summary": "",
-      "recommendation": ""
+      "model": "claude-haiku-4.5",
+      "status": "completed",
+      "score": 15,
+      "risk_level": "critical",
+      "findings_count": 14,
+      "top_findings": [
+        "No governance documentation; README.md missing",
+        "No model cards for ResNet and BERT components; model provenance undocumented",
+        "No documented bias testing or fairness evaluation for demographic-impacting AI"
+      ],
+      "summary": "VeriMedia AI is a high-risk autonomous content moderation platform that lacks foundational governance, documentation, and compliance infrastructure. The application performs autonomous authenticity verification and misinformation flagging affecting user rights to expression and information access\u2014triggering EU AI Act high-risk classification\u2014yet provides zero model cards, no documented bias testing, no human oversight workflows, and no privacy or accountability mechanisms. The complete absence o",
+      "recommendation": "1. **URGENT: Implement human oversight and kill switch** (Critical | Framework: EUAI-OVERSIGHT, NIST-MANAGE-3.1). Create docs/oversight-policy.md and implement in src/moderation.py: route all moderation decisions with confidence <0.95 to human review, establish 24-hour SLA, document kill switch procedure to halt autonomous decisions if false positive rate exceeds 5%. Without human oversight for high-impact moderation decisions, VeriMedia violates EU AI Act Article 14 and creates systemic risk of"
     }
   },
-  "started_at": "2026-04-05T21:43:13Z",
-  "completed_at": "2026-04-05T21:45:14Z",
-  "duration_seconds": 121,
+  "started_at": "2026-04-11T18:19:22Z",
+  "completed_at": "2026-04-11T18:21:52Z",
+  "duration_seconds": 150,
   "error": null
 }

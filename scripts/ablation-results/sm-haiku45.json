@@ -1,6 +1,6 @@
 {
   "run_id": "sm-haiku45",
-  "evaluation_id": "eval_FHKTrrDTq9jy",
+  "evaluation_id": "eval_hek5IoPh5Jva",
   "status": "completed",
   "models": {
     "sentinel": "copilot/claude-haiku-4.5",
@@ -8,9 +8,9 @@
     "guardian": "copilot/claude-haiku-4.5",
     "synthesizer": "copilot/claude-haiku-4.5"
   },
-  "verdict": "REJECT",
+  "verdict": "REVIEW",
   "confidence": 0.1,
-  "reasoning": "Verdict: REJECT (10% confidence)\n\nModule Scores:\n  Sentinel (CWE/OWASP Web Application Security): 50/100 [Low risk] \u2014 1 info\n  Watchdog (OWASP LLM Top 10 / Cisco AI Threat Taxonomy): 0/100 [Info risk] \u2014 1 info\n  guardian (unknown): 0/100 [Critical risk] \u2014 no findings\n\nArbitration Triggers:\n  \u2022 REJECT trigger \u2014 score below 30: Watchdog (0/100), guardian (0/100)\n\nDisagreement Resolution:\n  \u26a0 Sentinel scored 50/100 (low risk) while Watchdog scored 0/100 (info risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from Watchdog to maintain safety margins.\n  \u26a0 Sentinel scored 50/100 (low risk) while guardian scored 0/100 (critical risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n  \u26a0 Risk-level conflict: guardian rates critical risk while Watchdog rates info risk on the same application. Council defers to guardian's stricter assessment.\n\nConfidence Factors:\n  \u2022 -30% confidence: 3 disagreement(s) between modules\n  \u2022 -15% confidence: 1 module(s) failed to complete\n  \u2022 Base score: 25/100 average across 2 module(s)\n\n--- LLM-Enhanced Council Narrative ---\nVeriMedia AI's security posture cannot be adequately assessed due to fundamental data insufficiency compounded by module failure. Sentinel and Watchdog achieve consensus on the critical blocker: no source code submission prevents static analysis of both traditional web application vulnerabilities (CWE/OWASP) and AI/LLM-specific risks (OWASP LLM Top 10). Both modules correctly identified that application architecture (Flask-based REST API, user-uploaded media processing, autonomous content moderation, PostgreSQL backend, AWS deployment) presents significant surface area, but without code access, specific implementation flaws cannot be identified or validated. However, Watchdog identified a second-order gap: the application profile is ambiguous about whether only ResNet/BERT task-specific models are deployed or if generative LLMs (GPT, Claude, etc.) are integrated downstream\u2014this distinction materially affects threat model scope and cannot be resolved without clarification.\n\nCritically, Guardian module failed completely (status: failed, no findings), creating a strategic blind spot: governance and compliance analysis is entirely absent. This is not a methodological gap but a systemic failure. NIST AI RMF alignment, model documentation/transparency, bias audit evidence, regulatory compliance (EU AI Act applicability), and AI governance framework adherence are unassessed. VeriMedia AI's autonomous decision-making about content authenticity affecting public discourse suggests high-risk classification under emerging AI regulation, yet no compliance mapping exists. Guardian's failure also leaves unreviewed infrastructure governance (AWS IAM, secrets management, deployment pipeline security), which Sentinel's application-layer focus does not address.\n\nRecommended next steps: (1) Obtain complete source code submission from development team (Python files, requirements.txt, Flask routes, model inference pipelines, LLM API integrations if present); (2) Clarify architectural scope: confirm whether only ResNet/BERT are used or if generative LLMs are integrated; (3) Remediate Guardian module failure and rerun governance/compliance assessment against NIST AI RMF and applicable regulations; (4) Expand analysis to infrastructure-as-code and deployment configuration security. Current risk posture cannot be scored reliably; recommend holding architectural review gate until source code and governance assessment are complete.",
+  "reasoning": "Verdict: REVIEW (10% confidence)\n\nModule Scores:\n  Sentinel (CWE/OWASP Web Application Security): 50/100 [Low risk] \u2014 1 info\n  Watchdog (OWASP LLM Top 10 / Cisco AI Threat Taxonomy): 100/100 [Info risk] \u2014 1 info\n  guardian (unknown): 0/100 [Critical risk] \u2014 no findings\n\nArbitration Triggers:\n  \u2022 REVIEW trigger \u2014 score below 60: Sentinel (50/100)\n\nDisagreement Resolution:\n  \u26a0 Watchdog scored 100/100 (info risk) while Sentinel scored 50/100 (low risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from Sentinel to maintain safety margins.\n  \u26a0 Sentinel scored 50/100 (low risk) while guardian scored 0/100 (critical risk) \u2014 \u039450 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n  \u26a0 Watchdog scored 100/100 (info risk) while guardian scored 0/100 (critical risk) \u2014 \u0394100 point divergence. Arbitration defers to the stricter assessment from guardian to maintain safety margins.\n\nConfidence Factors:\n  \u2022 Base: 1/2 module(s) independently support REVIEW \u2014 45% baseline conviction\n  \u2022 -30% confidence: 3 disagreement(s) between modules\n  \u2022 -15% confidence: 1 module(s) failed to complete \u2014 reduced coverage\n  \u2022 Average module score across 2 completed module(s): 75/100 (reported for context \u2014 not directly used in confidence calibration)\n\n--- LLM-Enhanced Council Narrative ---\nVeriMedia AI's security posture cannot be adequately assessed due to cascading failures across the review pipeline. Sentinel correctly identifies that absence of source code prevents concrete vulnerability identification in Flask routes, authentication, input validation, and dependency management. Watchdog appropriately scopes out, confirming no LLM integrations are present and deferring CNN/BERT ML security to specialized analyzers. However, Guardian\u2014tasked with NIST AI RMF compliance, governance, bias, and fairness evaluation\u2014completely failed to execute, submitting a zero-score assessment with no findings or recommendations. This creates a critical governance blind spot in an AI safety review for a media verification platform, where bias, fairness, and model transparency are essential to prevent misuse in misinformation detection.\n\nThe review reveals significant gaps in coverage. Traditional ML security risks (adversarial robustness of ResNet/BERT, model poisoning via training data, API-based model extraction) were acknowledged by Watchdog but not assigned to any module for analysis. Similarly, AI-specific Flask integration risks\u2014such as insecure model deserialization, uncontrolled inference compute, and unauthenticated API endpoints for model access\u2014fall between Sentinel's application security focus and Watchdog's LLM-exclusive mandate. None of these gaps were adequately escalated or resolved.\n\nTo remediate: (1) submit complete source code to Sentinel for Flask/Python static analysis; (2) engage a traditional ML security specialist for CNN/BERT robustness, poisoning, and extraction risk assessment; (3) require Guardian to execute NIST AI RMF mapping, bias assessment, and governance documentation review (currently critical risk status with zero findings is unacceptable); (4) establish explicit security ownership for ML model integration layers in the assessment methodology to close the Sentinel-Watchdog-Guardian gap.",
   "modules": {
     "sentinel": {
       "model": "claude-haiku-4.5",
@@ -19,22 +19,22 @@
       "risk_level": "low",
       "findings_count": 1,
       "top_findings": [
-        "Insufficient source code provided for security analysis"
+        "Insufficient Source Code Provided for Security Analysis"
       ],
-      "summary": "VeriMedia AI is described as a Flask-based AI media verification platform with computer vision and NLP components, but no source code was provided for security analysis. Without access to actual code files, specific OWASP, CWE, or infrastructure security vulnerabilities cannot be identified.",
-      "recommendation": "Submit the complete application source code (Python files, configuration, dependencies, and infrastructure-as-code) to enable comprehensive security analysis. Provide at minimum: app.py or main entry point, requirements.txt, all Flask route definitions, database interaction code, and any credential/API key configuration."
+      "summary": "VeriMedia AI is described as a Flask-based AI platform for media verification with deep learning models, social media integration, and automated content moderation. However, no source code was provided, preventing identification of concrete security vulnerabilities in authentication, input validation, file handling, API security, or dependency management.",
+      "recommendation": "Submit the complete source code repository for comprehensive static security analysis. Priority areas to include: Flask application entry points and route definitions, authentication middleware, user input validation layers, file upload processing, API endpoint security, and dependency versions."
     },
     "watchdog": {
       "model": "claude-haiku-4.5",
       "status": "completed",
-      "score": 0,
+      "score": 100,
       "risk_level": "info",
       "findings_count": 1,
       "top_findings": [
-        "Insufficient Information: No Source Code Provided for LLM/AI Integration Analysis"
+        "No LLM Integrations Detected \u2014 Analysis Scope Out of Bounds"
       ],
-      "summary": "VeriMedia AI is described as an AI-powered media verification platform using ResNet for deepfake detection and BERT for NLP-based fact-checking. The application profile identifies several high-risk patterns: (1) automated content moderation with minimal human oversight, (2) user-uploaded content processing with no content filtering, (3) autonomous decision-making affecting public discourse. However, no source code was provided; therefore, specific LLM/AI integration vulnerabilities (prompt injec",
-      "recommendation": "1. Submit complete source code for LLM/AI integration layers (Flask routes, model inference, prompt construction, API integrations). 2. Specify exact AI/LLM technologies used (e.g., OpenAI GPT, Hugging Face transformers, custom models, Anthropic Claude). 3. Clarify whether any Large Language Models (GPT, Claude, Llama, etc.) are integrated; the current profile references only ResNet and BERT, which are task-specific models, not generative LLMs, and fall outside OWASP-LLM scope unless used within"
+      "summary": "VeriMedia AI \u2014 a Flask/Python media verification platform using computer vision (ResNet, BERT) \u2014 was submitted for LLM security analysis. No Large Language Model integrations were detected in the application profile or source code. Watchdog specialises exclusively in LLM and AI-integration security (OWASP-LLM Top 10, prompt injection, insecure output handling, etc.). Without LLM usage, this analysis falls outside scope. If LLM components exist but were not detected (e.g., calls to OpenAI/Claude ",
+      "recommendation": "1. Confirm whether VeriMedia AI uses LLM APIs (OpenAI, Anthropic, Cohere) or LLM frameworks (LangChain, Haystack, LlamaIndex) in fact-checking or claim extraction workflows \u2014 if yes, provide source code for Watchdog analysis. 2. If no LLM integration exists, route security review to a general ML security analyzer for CNN/BERT model robustness assessment. 3. Route governance, bias, and fairness gaps to Guardian for compliance and documentation review."
     },
     "guardian": {
       "model": null,
@@ -47,8 +47,8 @@
       "recommendation": ""
     }
   },
-  "started_at": "2026-04-05T22:04:04Z",
-  "completed_at": "2026-04-05T22:05:34Z",
-  "duration_seconds": 90,
+  "started_at": "2026-04-11T18:00:31Z",
+  "completed_at": "2026-04-11T18:05:32Z",
+  "duration_seconds": 301,
   "error": null
 }
