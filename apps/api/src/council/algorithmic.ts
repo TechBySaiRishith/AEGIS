@@ -258,6 +258,10 @@ export function computeAlgorithmicVerdict(
   const disagreements = detectDisagreements(assessments);
 
   // ── Pass 5: Confidence calibration ─────────────────────────
+  // Confidence measures conviction in the VERDICT, not app quality.
+  // A unanimous REJECT from all three modules is high-confidence REJECT;
+  // a split decision (one REJECT vs two APPROVE) is low-confidence in
+  // whatever verdict arbitration lands on.
   const completedModules = assessments.filter((a) => a.status === "completed");
   const failedModules = assessments.filter((a) => a.status === "failed");
 
@@ -266,50 +270,78 @@ export function computeAlgorithmicVerdict(
       ? completedModules.reduce((sum, a) => sum + a.score, 0) / completedModules.length
       : 0;
 
-  let confidence = Math.round((avgScore / 100) * 100) / 100;
+  // How many completed modules independently "vote" for the same verdict
+  // the arbitration process landed on?
+  const modulesAgreeingWithVerdict = completedModules.filter((a) => {
+    if (verdict === "REJECT") {
+      return a.score < REJECT_SCORE_THRESHOLD || hasCriticalFinding(a);
+    }
+    if (verdict === "REVIEW") {
+      return a.score < REVIEW_SCORE_THRESHOLD || hasHighFindings(a);
+    }
+    // APPROVE: module must clear both thresholds AND have no critical/high
+    return (
+      a.score >= REVIEW_SCORE_THRESHOLD && !hasCriticalFinding(a) && !hasHighFindings(a)
+    );
+  }).length;
 
-  // Boost confidence when modules agree
+  // Base confidence from verdict unanimity — scaled so 3/3 → 0.90
+  let confidence =
+    completedModules.length > 0
+      ? (modulesAgreeingWithVerdict / completedModules.length) * 0.9
+      : 0;
+
+  confidenceFactors.push(
+    `Base: ${modulesAgreeingWithVerdict}/${completedModules.length} module(s) independently support ${verdict} — ` +
+      `${Math.round(confidence * 100)}% baseline conviction`,
+  );
+
+  // Tight score agreement (low dispersion) boosts conviction
   const scoreStdDev = Math.sqrt(
     completedModules.reduce((sum, a) => sum + (a.score - avgScore) ** 2, 0) /
       Math.max(completedModules.length, 1),
   );
 
-  if (scoreStdDev < 10 && completedModules.length >= 3) {
-    confidence = Math.min(1, confidence + 0.05);
+  if (scoreStdDev < 10 && completedModules.length >= 3 && modulesAgreeingWithVerdict >= 2) {
+    confidence = Math.min(0.98, confidence + 0.05);
     confidenceFactors.push(
-      `+5% confidence: all ${completedModules.length} modules agree (σ=${scoreStdDev.toFixed(1)})`,
+      `+5% confidence: modules converge tightly (σ=${scoreStdDev.toFixed(1)}) on ${verdict}`,
     );
   }
 
-  // Boost for corroboration
-  if (corroborations.length >= 2) {
-    confidence = Math.min(1, confidence + 0.05);
+  // Corroborated findings across modules strengthen the verdict
+  if (corroborations.length >= 1) {
+    const boost = Math.min(0.05, 0.02 * corroborations.length);
+    confidence = Math.min(0.98, confidence + boost);
     confidenceFactors.push(
-      `+5% confidence: ${corroborations.length} corroborated findings across modules`,
+      `+${Math.round(boost * 100)}% confidence: ${corroborations.length} finding(s) independently corroborated across modules`,
     );
   }
 
-  // Penalize for disagreements
+  // Material score disagreements (Δ≥30) lower conviction
   if (disagreements.length > 0) {
-    confidence = Math.max(0.1, confidence - 0.1 * disagreements.length);
+    const penalty = 0.1 * disagreements.length;
+    confidence = Math.max(0.1, confidence - penalty);
     confidenceFactors.push(
-      `-${10 * disagreements.length}% confidence: ${disagreements.length} disagreement(s) between modules`,
+      `-${Math.round(penalty * 100)}% confidence: ${disagreements.length} disagreement(s) between modules`,
     );
   }
 
-  // Penalize for failed modules
+  // Failed modules reduce coverage, so reduce confidence in whatever
+  // verdict survives.
   if (failedModules.length > 0) {
-    confidence = Math.max(0.1, confidence - 0.15 * failedModules.length);
+    const penalty = 0.15 * failedModules.length;
+    confidence = Math.max(0.1, confidence - penalty);
     confidenceFactors.push(
-      `-${15 * failedModules.length}% confidence: ${failedModules.length} module(s) failed to complete`,
+      `-${Math.round(penalty * 100)}% confidence: ${failedModules.length} module(s) failed to complete — reduced coverage`,
     );
   }
 
-  // Ensure confidence is in valid range
-  confidence = Math.round(Math.max(0, Math.min(1, confidence)) * 100) / 100;
+  confidence = Math.round(Math.max(0.1, Math.min(0.98, confidence)) * 100) / 100;
 
   confidenceFactors.push(
-    `Base score: ${avgScore.toFixed(0)}/100 average across ${completedModules.length} module(s)`,
+    `Average module score across ${completedModules.length} completed module(s): ${avgScore.toFixed(0)}/100 ` +
+      `(reported for context — not directly used in confidence calibration)`,
   );
 
   // ── Build structured reasoning ─────────────────────────────
