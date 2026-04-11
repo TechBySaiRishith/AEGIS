@@ -141,6 +141,11 @@ export interface Finding {
   evidence: Evidence[];
   remediation?: string;
   framework?: string; // CWE-79, OWASP-LLM01, NIST-MAP-1.1, etc.
+  /** When cross-module dedup detects the same issue flagged by another module */
+  corroboratedBy?: Array<{
+    moduleId: string;
+    findingId: string;
+  }>;
 }
 
 export interface Evidence {
