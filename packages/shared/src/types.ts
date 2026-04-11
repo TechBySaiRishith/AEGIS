@@ -235,6 +235,8 @@ export interface EvaluationReport {
   id: string;
   evaluationId: string;
   executiveSummary: string;
+  /** Jargon-free "what this means" summary for non-technical stakeholders. */
+  plainLanguageSummary?: string;
   verdict: Verdict;
   confidence: number;
   applicationName: string;

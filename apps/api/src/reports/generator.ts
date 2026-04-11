@@ -246,7 +246,14 @@ function buildRecommendations(
 
 // ─── Build executive summary ───────────────────────────────
 
-function buildExecutiveSummary(
+/**
+ * Build the executive summary narrative. Exported for unit testing.
+ *
+ * NOTE: previously this joined `lines` directly and produced runs of empty
+ * strings (doubled blank lines in the rendered output). We now collapse
+ * consecutive empty strings before joining.
+ */
+export function buildExecutiveSummary(
   appName: string,
   appDescription: string,
   framework: string,
@@ -328,7 +335,56 @@ function buildExecutiveSummary(
     `Council verdict: ${verdict} (${(council.confidence * 100).toFixed(0)}% confidence).`,
   );
 
-  return lines.join("\n");
+  // Collapse any runs of empty strings so we never emit doubled blank lines.
+  // Uses an imperative reduce to stay O(n) — do NOT replace with spread.
+  const deduped = lines.reduce<string[]>((acc, line) => {
+    if (line === "" && acc[acc.length - 1] === "") return acc;
+    acc.push(line);
+    return acc;
+  }, []);
+  return deduped.join("\n").trim();
+}
+
+// ─── Build plain-language stakeholder summary ──────────────
+
+/**
+ * Build a jargon-free "what this means" summary aimed at non-technical
+ * stakeholders. Avoids references to CWE / OWASP / NIST frameworks and
+ * instead explains the verdict in everyday language plus a concrete next
+ * step. Exported for unit testing.
+ */
+export function buildPlainLanguageSummary(
+  applicationName: string,
+  verdict: string,
+  assessments: ExpertAssessment[],
+): string {
+  const headline =
+    verdict === "APPROVE"
+      ? `${applicationName} passed all three independent safety reviews.`
+      : verdict === "REVIEW"
+        ? `${applicationName} has safety concerns that need review before deployment.`
+        : `${applicationName} has serious safety problems and should not be deployed as-is.`;
+
+  const criticalCount = assessments.reduce(
+    (acc, a) => acc + a.findings.filter((f) => f.severity === "critical").length,
+    0,
+  );
+
+  const whatItMeans =
+    verdict === "APPROVE"
+      ? "Our three expert reviewers — one for security, one for AI-specific risks, and one for governance — each examined the application independently and all agreed it meets baseline standards. This does not guarantee the system is perfectly safe, but no show-stopping issues were found."
+      : verdict === "REVIEW"
+        ? "Our three expert reviewers found issues that need human judgment before this application is used in production. These are not necessarily show-stoppers, but a qualified engineer should look at them."
+        : `Our three expert reviewers found ${criticalCount} critical problem${criticalCount === 1 ? "" : "s"}. These are the kind of issues that could lead to data leaks, users being harmed, or legal exposure. The application should be fixed before any real-world use.`;
+
+  const nextStep =
+    verdict === "APPROVE"
+      ? "Next step: proceed with normal deployment processes."
+      : verdict === "REVIEW"
+        ? "Next step: have a qualified engineer review the flagged items and decide whether each one blocks deployment."
+        : "Next step: fix the critical findings, then re-run AEGIS. Do not deploy in the meantime.";
+
+  return [headline, "", whatItMeans, "", nextStep].join("\n");
 }
 
 // ─── Build council analysis narrative ──────────────────────
@@ -561,6 +617,13 @@ export function generateReport(evaluation: EvaluationData): EvaluationReport {
     council,
   );
 
+  // Plain-language stakeholder summary (jargon-free "what this means" block)
+  const plainLanguageSummary = buildPlainLanguageSummary(
+    applicationName,
+    council.verdict,
+    assessments,
+  );
+
   // Council analysis narrative
   const councilAnalysis = buildCouncilAnalysis(council);
 
@@ -577,6 +640,7 @@ export function generateReport(evaluation: EvaluationData): EvaluationReport {
     id: `rpt_${nanoid(12)}`,
     evaluationId,
     executiveSummary,
+    plainLanguageSummary,
     verdict: council.verdict,
     confidence: council.confidence,
     applicationName,

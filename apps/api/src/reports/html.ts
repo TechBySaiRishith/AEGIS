@@ -614,7 +614,19 @@ export function renderHTMLReport(report: EvaluationReport, options: HTMLReportOp
     </div>
     <span class="confidence">Confidence: ${(report.confidence * 100).toFixed(0)}%</span>
   </div>
-
+${
+  report.plainLanguageSummary
+    ? `
+  <!-- Plain-language "What this means" summary for non-technical stakeholders -->
+  <section class="section">
+    <h2>What this means</h2>
+    <div class="plain-language-summary section-card">
+      <p>${nl2br(report.plainLanguageSummary)}</p>
+    </div>
+  </section>
+`
+    : ""
+}
   <!-- Executive summary -->
   <section class="section">
     <h2>Executive summary</h2>
