@@ -210,9 +210,14 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
     pushEvent(evaluationId, "status", { status: "synthesizing", message: "Council arbitrating verdict across all expert assessments…" });
 
     // Resolve synthesizer LLM (optional — council falls back to algorithmic-only)
+    // Resolution order:
+    //   1. request.models.synthesizer (per-request override)
+    //   2. SYNTHESIZER_MODEL env var
+    //   3. AEGIS_DEFAULT_MODEL env var (via registry.getDefault())
     let synthesizerLLM: LLMProvider | undefined;
     try {
-      const synthModelSpec = request.models?.synthesizer;
+      const synthModelSpec =
+        request.models?.synthesizer ?? process.env.SYNTHESIZER_MODEL;
       if (synthModelSpec) {
         const parsed = parseModelSpec(synthModelSpec);
         if (parsed) {

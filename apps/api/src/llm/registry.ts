@@ -37,35 +37,37 @@ export class LLMRegistry {
 
   /** Scan environment variables and register every provider that has credentials */
   private discover(): void {
+    // If AEGIS_DEFAULT_MODEL points at a provider, use its model when
+    // registering that provider so health/status endpoints report the
+    // operator's configured model rather than the hardcoded fallback.
+    const envDefault = process.env.AEGIS_DEFAULT_MODEL;
+    const envDefaultParsed = envDefault ? parseModelSpec(envDefault) : undefined;
+    const modelFor = (p: LLMProviderType): string =>
+      envDefaultParsed?.provider === p ? envDefaultParsed.model : DEFAULT_MODELS[p];
+
     // Anthropic
     if (process.env.ANTHROPIC_API_KEY) {
-      this.register(
-        new AnthropicProvider(DEFAULT_MODELS.anthropic),
-      );
+      this.register(new AnthropicProvider(modelFor("anthropic")));
     }
 
     // GitHub Copilot (premium models via api.githubcopilot.com)
     if (isCopilotAvailable()) {
-      this.register(
-        new CopilotProvider(DEFAULT_MODELS.copilot),
-      );
+      this.register(new CopilotProvider(modelFor("copilot")));
     }
 
     // OpenAI
     if (process.env.OPENAI_API_KEY) {
-      this.register(createOpenAIProvider(DEFAULT_MODELS.openai));
+      this.register(createOpenAIProvider(modelFor("openai")));
     }
 
     // GitHub Models
     if (process.env.GITHUB_TOKEN && !process.env.GITHUB_TOKEN.startsWith("ghu_")) {
-      this.register(
-        createGitHubModelsProvider(DEFAULT_MODELS.github),
-      );
+      this.register(createGitHubModelsProvider(modelFor("github")));
     }
 
     // Custom OpenAI-compatible
     if (process.env.CUSTOM_LLM_BASE_URL && process.env.CUSTOM_LLM_API_KEY) {
-      this.register(createCustomProvider(DEFAULT_MODELS.custom));
+      this.register(createCustomProvider(modelFor("custom")));
     }
 
     // Resolve default
