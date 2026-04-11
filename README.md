@@ -337,13 +337,29 @@ The API starts on `http://localhost:3001` and the web UI on `http://localhost:30
 ### Available Commands
 
 ```bash
-pnpm dev              # Start all services in dev mode (parallel)
-pnpm build            # Build all packages
-pnpm lint             # Lint all packages
-pnpm test             # Run tests across all packages
-pnpm docker:up        # Build and start Docker containers
-pnpm docker:down      # Stop Docker containers
+pnpm dev                              # Start all services in dev mode (parallel)
+pnpm build                            # Build all packages
+pnpm lint                             # Lint all packages
+pnpm test                             # Run tests across all packages
+pnpm --filter @aegis/api test:coverage  # Enforce api coverage thresholds (global + per-file)
+pnpm --filter @aegis/web test         # Run web component tests (React Testing Library)
+pnpm --filter @aegis/web test:e2e     # Run Playwright end-to-end suite
+pnpm docker:up                        # Build and start Docker containers
+pnpm docker:down                      # Stop Docker containers
 ```
+
+### Testing & Coverage
+
+The test pyramid enforced in CI:
+
+| Layer | Command | What it covers |
+|---|---|---|
+| **API unit + integration** | `pnpm --filter @aegis/api test` | Council arbitration, intake profiling, report generator, LLM registry, full pipeline with a fake LLM provider |
+| **API coverage gate** | `pnpm --filter @aegis/api test:coverage` | Global floor (74% lines, 67% branches, 85% functions) plus per-file floors for `algorithmic.ts` (95/92/98), `analyze.ts`, `generator.ts`, `registry.ts` |
+| **Web components** | `pnpm --filter @aegis/web test` | React Testing Library with jsdom |
+| **E2E** | `pnpm --filter @aegis/web test:e2e` | Playwright running `next dev` against intercepted `/api/health` routes |
+
+CI wires all four into `.github/workflows/ci.yml` — regressions below any coverage floor fail the build.
 
 ---
 
@@ -624,7 +640,7 @@ AEGIS supports multiple LLM providers simultaneously through its **LLM Registry*
 | **GitHub Models** | `GITHUB_TOKEN` | `gpt-4o` |
 | **Custom** (OpenAI-compatible) | `CUSTOM_LLM_BASE_URL` + `CUSTOM_LLM_API_KEY` | `default` |
 
-> **If `pnpm install` fails on `better-sqlite3`:** Some environments (restricted Docker images, machines without a C++ toolchain) cannot compile native modules. Fallback: run `pnpm install --ignore-scripts`, then rely on the prebuilt Docker image (`pnpm docker:up`) for local development. The production Dockerfile builds the native module inside a full toolchain layer, so `docker:up` always works.
+> **`better-sqlite3` native binary:** pnpm is configured via `pnpm.onlyBuiltDependencies` (root `package.json`) to run the `better-sqlite3` install script, which downloads a prebuilt binary via `prebuild-install` for Node 20 on Linux/macOS/Windows. No C++ toolchain is required on standard platforms. If a prebuilt is unavailable for your specific Node ABI, `prebuild-install` falls back to a source build — in that case, install build tools (`build-essential` on Debian/Ubuntu, Xcode CLT on macOS) or use the Docker image (`pnpm docker:up`), which ships with the toolchain baked in.
 
 ### Copilot Provider (GitHub Copilot Enterprise)
 
