@@ -156,11 +156,45 @@ export function computeAlgorithmicVerdict(
   const confidenceFactors: string[] = [];
   let verdict: Verdict = "APPROVE";
 
+  // Only completed modules feed the verdict scan — failed modules carry
+  // a placeholder score of 0 from `failedAssessment()`, and letting them
+  // trip Pass 1 would mean a single crashed expert drags the whole
+  // council to REJECT regardless of the other experts' real findings.
+  // Coverage loss from failed modules is accounted for separately in
+  // Pass 5 (confidence penalty) and in the all-failed guard below.
+  const completedAssessments = assessments.filter((a) => a.status === "completed");
+
+  // No coverage at all — every module failed. Force REJECT because we
+  // cannot approve an app we did not actually evaluate.
+  if (completedAssessments.length === 0) {
+    return {
+      verdict: "REJECT",
+      confidence: 0.1,
+      reasoning:
+        `Verdict: REJECT (10% confidence)\n\n` +
+        `Arbitration aborted — no completed modules. All ${assessments.length} expert module(s) ` +
+        `failed to produce an assessment, so the council has zero coverage and cannot approve ` +
+        `the application.`,
+      deliberation: {
+        arbitrationProcess:
+          `AEGIS Council Arbitration — aborted\n\n` +
+          `No completed modules (${assessments.length} failed). Council defaults to REJECT ` +
+          `because an un-evaluated application cannot be approved.`,
+        crossReferences: [],
+        disagreements: [],
+        corroborations: [],
+        confidenceFactors: [
+          `No completed modules — zero coverage, verdict defaulted to REJECT.`,
+        ],
+      },
+    };
+  }
+
   // ── Pass 1: REJECT triggers ────────────────────────────────
   const rejectModules: string[] = [];
   const criticalModules: { name: string; findings: string[] }[] = [];
 
-  for (const a of assessments) {
+  for (const a of completedAssessments) {
     if (a.score < REJECT_SCORE_THRESHOLD) {
       rejectModules.push(`${a.moduleName} (${a.score}/100)`);
     }
@@ -193,7 +227,7 @@ export function computeAlgorithmicVerdict(
     let modulesWithHighFindings = 0;
     const highDetails: string[] = [];
 
-    for (const a of assessments) {
+    for (const a of completedAssessments) {
       if (a.score < REVIEW_SCORE_THRESHOLD) {
         reviewScoreModules.push(`${a.moduleName} (${a.score}/100)`);
       }

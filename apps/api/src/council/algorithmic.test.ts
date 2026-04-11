@@ -60,6 +60,34 @@ describe("computeAlgorithmicVerdict", () => {
       expect(result.reasoning).toMatch(/Watchdog \(20\/100\)/);
       expect(result.reasoning).toMatch(/Guardian \(10\/100\)/);
     });
+
+    it("does NOT trigger REJECT from a failed module's placeholder score=0", () => {
+      // Real-world scenario: Watchdog's LLM call fails and the failed
+      // assessment is emitted with score=0. Pass 1 must skip failed modules
+      // so one crashed expert can't drag the whole council to REJECT.
+      const result = computeAlgorithmicVerdict([
+        makeAssessment({ moduleId: "sentinel", score: 85, riskLevel: "low" }),
+        makeAssessment({
+          moduleId: "watchdog",
+          score: 0,
+          status: "failed",
+          riskLevel: "critical",
+          error: "provider timed out",
+        }),
+        makeAssessment({ moduleId: "guardian", score: 88, riskLevel: "low" }),
+      ]);
+      expect(result.verdict).toBe("APPROVE");
+    });
+
+    it("forces REJECT when every module failed (no coverage = no approval)", () => {
+      const result = computeAlgorithmicVerdict([
+        makeAssessment({ moduleId: "sentinel", score: 0, status: "failed", error: "x" }),
+        makeAssessment({ moduleId: "watchdog", score: 0, status: "failed", error: "x" }),
+        makeAssessment({ moduleId: "guardian", score: 0, status: "failed", error: "x" }),
+      ]);
+      expect(result.verdict).toBe("REJECT");
+      expect(result.reasoning).toMatch(/no completed modules/i);
+    });
   });
 
   describe("Pass 2 — REVIEW scan", () => {
