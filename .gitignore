@@ -41,3 +41,7 @@ data/
 apps/web/test-results/
 apps/web/playwright-report/
 apps/web/playwright/.cache/
+
+# Vitest coverage output
+coverage/
+apps/api/coverage/

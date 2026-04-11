@@ -36,6 +36,9 @@ jobs:
       - name: Run api test suite
         run: pnpm --filter @aegis/api test
 
+      - name: Enforce api coverage thresholds
+        run: pnpm --filter @aegis/api test:coverage
+
       - name: Run web component test suite
         run: pnpm --filter @aegis/web test
 
