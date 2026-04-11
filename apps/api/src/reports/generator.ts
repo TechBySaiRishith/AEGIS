@@ -111,37 +111,62 @@ function verdictParagraph(
   verdict: string,
   appName: string,
   appContext: ReturnType<typeof extractAppContext>,
+  assessments: ExpertAssessment[],
+  confidence?: number,
 ): string {
   const techDesc = appContext.techStack !== "unknown framework"
     ? `a ${appContext.techStack} application${appContext.aiModels.length > 0 ? ` integrating ${appContext.aiModels.join(", ")}` : ""}`
     : "this application";
 
+  // Count high/critical findings across all assessments for specificity
+  const allFindings = assessments.flatMap((a) => a.findings);
+  const criticalCount = allFindings.filter((f) => f.severity === "critical").length;
+  const highCount = allFindings.filter((f) => f.severity === "high").length;
+
+  const confidenceSentence = confidence != null
+    ? ` The council's confidence in this determination is ${(confidence * 100).toFixed(0)}%.`
+    : "";
+
   switch (verdict) {
     case "APPROVE":
       return (
-        `Based on the combined analysis, ${appName} (${techDesc}) meets the safety thresholds ` +
-        `required for deployment. No critical or high-severity issues were identified that would block release. ` +
-        `The Council recommends approval, though any medium-severity findings should be addressed in subsequent iterations.`
+        `Based on the combined analysis across CWE-based code security (Sentinel), OWASP LLM Top 10 ` +
+        `safety evaluation (Watchdog), and NIST AI RMF governance review (Guardian), ${appName} ` +
+        `(${techDesc}) meets the safety thresholds required for deployment. No critical or high-severity ` +
+        `issues were identified that would block release. The Council recommends approval, though any ` +
+        `medium-severity findings should be addressed in subsequent iterations.` +
+        confidenceSentence
       );
-    case "REVIEW":
+    case "REVIEW": {
+      const findingCounts = criticalCount + highCount > 0
+        ? `${criticalCount > 0 ? `${criticalCount} critical` : ""}${criticalCount > 0 && highCount > 0 ? " and " : ""}${highCount > 0 ? `${highCount} high-severity` : ""} finding(s) across modules`
+        : "elevated risk indicators across expert modules";
       return (
-        `The evaluation identified concerns in ${appName} (${techDesc}) that require manual review ` +
-        `before deployment can proceed. ` +
+        `The evaluation identified ${findingCounts} in ${appName} (${techDesc}) that require ` +
+        `manual review before deployment can proceed. ` +
+        `Sentinel's CWE-based analysis, Watchdog's OWASP LLM Top 10 assessment, and Guardian's ` +
+        `NIST AI RMF governance review each contributed to this determination. ` +
         (appContext.securityGaps.length > 0
           ? `Notable security gaps include: ${appContext.securityGaps.slice(0, 3).join(", ")}. `
           : "") +
-        `The safety team should inspect high-severity findings and confirm that mitigations are in place ` +
-        `before a final determination is made.`
+        `The safety team should inspect all high-severity findings and confirm that mitigations ` +
+        `are in place before a final determination is made.` +
+        confidenceSentence
       );
+    }
     case "REJECT":
       return (
         `The evaluation identified critical safety concerns in ${appName} (${techDesc}) ` +
         `that preclude deployment in its current state. ` +
+        `Sentinel's CWE-based code analysis${criticalCount > 0 ? ` flagged ${criticalCount} critical vulnerability(ies)` : ""}, ` +
+        `Watchdog's OWASP LLM Top 10 assessment evaluated AI-specific attack surfaces, and ` +
+        `Guardian's NIST AI RMF governance review identified compliance gaps. ` +
         (appContext.securityGaps.length > 0
-          ? `Key areas of concern: ${appContext.securityGaps.slice(0, 3).join(", ")}. `
+          ? `Key areas requiring immediate remediation: ${appContext.securityGaps.slice(0, 3).join(", ")}. `
           : "") +
-        `The application must undergo remediation addressing the critical and high-severity findings ` +
-        `documented below, then be re-evaluated before it can be considered for approval.`
+        `All critical and high-severity findings documented below must be remediated and the ` +
+        `application re-evaluated before it can be considered for approval.` +
+        confidenceSentence
       );
     default:
       return `The evaluation completed with verdict: ${verdict}.`;
@@ -299,7 +324,7 @@ export function buildExecutiveSummary(
   lines.push("");
 
   // Verdict paragraph — application-specific
-  lines.push(verdictParagraph(verdict, appName, appContext));
+  lines.push(verdictParagraph(verdict, appName, appContext, assessments, council.confidence));
 
   lines.push("");
 
