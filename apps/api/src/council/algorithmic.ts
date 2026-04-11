@@ -7,8 +7,52 @@ import type {
 } from "@aegis/shared";
 
 // ─── Thresholds ──────────────────────────────────────────────
+
+/**
+ * Minimum module score to avoid an automatic REJECT verdict (Pass 1).
+ *
+ * A score below 30 indicates that an expert module found severe, pervasive
+ * issues — typically multiple critical findings or a combination of critical
+ * and high-severity concerns. The value of 30 was chosen because:
+ *
+ *  - Scores are 0–100 where 100 = no findings. Each critical finding
+ *    deducts ~25 points and each high ~15 points (see expert `deriveScore`).
+ *  - A score of 30 therefore implies at least 2 critical findings or 1
+ *    critical + several high — a level of risk that should never pass
+ *    through to production without remediation.
+ *  - This threshold interacts with Pass 2: if a module scores between 30
+ *    and 59 it escapes REJECT but still triggers a REVIEW hold.
+ */
 const REJECT_SCORE_THRESHOLD = 30;
+
+/**
+ * Minimum module score to avoid an automatic REVIEW hold (Pass 2).
+ *
+ * Scores below 60 indicate moderate-to-significant findings that warrant
+ * human inspection. The 60-point boundary was calibrated so that:
+ *
+ *  - A single high-severity finding (~15-point deduction) is usually not
+ *    enough to breach the threshold on its own — the module needs a
+ *    combination of findings to signal systemic concern.
+ *  - The 30-point gap between REJECT (30) and REVIEW (60) creates a
+ *    clear "remediation-required" band vs. a "needs-human-check" band.
+ *
+ * Note: the Δ≥30 disagreement threshold in synthesizer.ts (line 30) is
+ * calibrated to this same 30-point spread — it flags meaningful divergence
+ * between modules without over-triggering on minor scoring differences.
+ */
 const REVIEW_SCORE_THRESHOLD = 60;
+
+/**
+ * Number of modules that must independently report high-severity findings
+ * before the council escalates to REVIEW (Pass 2).
+ *
+ * When 2 or more modules flag high-severity concerns, the council treats
+ * this as cross-module corroboration of material risk — even if individual
+ * module scores remain above 60. A threshold of 2 (out of 3 total modules)
+ * ensures that isolated high findings from a single domain don't trigger
+ * unnecessary holds while genuine cross-cutting risks are caught.
+ */
 const HIGH_FINDING_MODULE_THRESHOLD = 2;
 
 /**
@@ -148,12 +192,42 @@ export interface AlgorithmicResult {
  * Compute a deterministic verdict from expert assessments through an
  * explicit multi-pass arbitration process — NO LLM required.
  *
- * Arbitration passes:
- *  Pass 1 — REJECT triggers: any module score < 30 OR any critical finding
- *  Pass 2 — REVIEW triggers: any score < 60 OR high findings in 2+ modules
- *  Pass 3 — Cross-reference: corroborate findings across modules
- *  Pass 4 — Disagreement resolution: defer to stricter assessments
- *  Pass 5 — Confidence calibration: adjust based on agreement/coverage
+ * The 5-pass arbitration pipeline runs in strict order. Each pass can only
+ * escalate the verdict (APPROVE → REVIEW → REJECT), never de-escalate.
+ * This guarantees a conservative, safety-first outcome.
+ *
+ * ### Pass 1 — REJECT scan
+ * Checks every completed module for: (a) score below `REJECT_SCORE_THRESHOLD`
+ * (30), or (b) any finding with severity "critical". Either condition forces
+ * an immediate REJECT because the risk is too severe for human review alone.
+ *
+ * ### Pass 2 — REVIEW scan (skipped if already REJECT)
+ * Checks for: (a) any module score below `REVIEW_SCORE_THRESHOLD` (60), or
+ * (b) high-severity findings reported by ≥ `HIGH_FINDING_MODULE_THRESHOLD`
+ * (2) modules. This pass also enforces a coverage floor — if fewer than
+ * `MIN_MODULES_FOR_APPROVE` modules completed, APPROVE downgrades to REVIEW
+ * because the council lacks independent corroboration.
+ *
+ * ### Pass 3 — Cross-reference
+ * Detects findings that appear in the same risk category across 2+ modules.
+ * Corroborated findings strengthen conviction in the verdict without
+ * changing the verdict tier itself.
+ *
+ * ### Pass 4 — Disagreement resolution
+ * Identifies module pairs whose scores diverge by ≥ 30 points (the same
+ * Δ≥30 threshold documented in `synthesizer.ts` line 30). When modules
+ * disagree, arbitration defers to the stricter assessment to maintain
+ * safety margins. Three-way divergence triggers maximum caution.
+ *
+ * ### Pass 5 — Confidence calibration
+ * Computes a 0.10–0.98 confidence score reflecting how much the council
+ * trusts its own verdict. Factors: unanimity among modules, score standard
+ * deviation, number of corroborations, disagreements, and failed modules.
+ * Confidence measures conviction in the *verdict*, not application quality.
+ *
+ * @param assessments — One `ExpertAssessment` per module (sentinel, watchdog, guardian).
+ * @returns `AlgorithmicResult` with verdict, confidence, human-readable reasoning,
+ *          and a structured `CouncilDeliberation` record for audit trails.
  */
 export function computeAlgorithmicVerdict(
   assessments: ExpertAssessment[],
