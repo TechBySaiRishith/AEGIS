@@ -23,6 +23,7 @@ import type {
   Verdict,
 } from "@aegis/shared";
 import { getEvaluation, getEvaluationReportHtmlUrl, subscribeToEvents } from "@/lib/api";
+import FrameworkTooltip from "@/components/FrameworkTooltip";
 
 const MODULE_ACCENTS: Record<ExpertModuleId, string> = {
   sentinel: "var(--sentinel)",
@@ -565,7 +566,12 @@ function FindingRow({ finding }: { finding: Finding }) {
           <div className="text-sm font-semibold text-[var(--text)]">{finding.title}</div>
           <div className="mt-1 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
             {finding.category}
-            {finding.framework ? ` · ${finding.framework}` : ""}
+            {finding.framework ? (
+              <>
+                <span className="mx-1.5">·</span>
+                <FrameworkTooltip framework={finding.framework} />
+              </>
+            ) : null}
           </div>
         </div>
         <span className="rounded-full border border-white/10 px-2 py-1 text-[0.7rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
@@ -892,10 +898,14 @@ function VerdictBanner({
   verdict,
   confidence,
   coverageNotes,
+  reportUrl,
+  printUrl,
 }: {
   verdict: Verdict;
   confidence: number;
   coverageNotes?: string[];
+  reportUrl?: string;
+  printUrl?: string;
 }) {
   const style = VERDICT_STYLES[verdict] ?? VERDICT_STYLES.REVIEW;
   const confidencePercent = Math.round(confidence * 100);
@@ -929,16 +939,38 @@ function VerdictBanner({
                   review outcome.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                 <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                   Institutional review package
-                 </span>
-                 <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                   Audit ready
-                 </span>
-               </div>
-             </div>
-           </div>
-         </div>
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    Institutional review package
+                  </span>
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    Audit ready
+                  </span>
+                </div>
+                {reportUrl ? (
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <a
+                      href={reportUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--accent)]/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.95),rgba(8,145,178,0.88))] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--background)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,211,238,0.22)]"
+                    >
+                      Download report
+                    </a>
+                    {printUrl ? (
+                      <a
+                        href={printUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-black/20 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text)] transition duration-200 hover:-translate-y-0.5 hover:border-white/18 hover:text-[var(--accent)]"
+                      >
+                        Print report
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
  
           <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5 transition-opacity duration-300">
            <div className="flex items-end justify-between gap-4">
@@ -1351,6 +1383,8 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
           verdict={council.verdict}
           confidence={council.confidence}
           coverageNotes={coverageNotes}
+          reportUrl={getEvaluationReportHtmlUrl(evaluation.id)}
+          printUrl={getEvaluationReportHtmlUrl(evaluation.id, { autoPrint: true })}
         />
       ) : null}
 
@@ -1597,14 +1631,6 @@ export default function EvaluationDetailPage() {
 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [events, setEvents] = useState<SSEEvent[]>([]);
-
-  const handleExportReport = useCallback((evaluationId: string) => {
-    const reportUrl = getEvaluationReportHtmlUrl(evaluationId, { autoPrint: true });
-    const openedWindow = window.open(reportUrl, "_blank", "noopener,noreferrer");
-    if (!openedWindow) {
-      window.location.assign(reportUrl);
-    }
-  }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -1708,17 +1734,6 @@ export default function EvaluationDetailPage() {
           >
             ← All evaluations
           </button>
-          {isComplete ? (
-            <button
-              type="button"
-              onClick={() => handleExportReport(evaluation.id)}
-              className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(24,24,27,0.94),rgba(12,12,14,0.94))] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text)] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_14px_30px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)]/45 hover:text-[var(--accent)] hover:shadow-[0_0_24px_rgba(79,70,229,0.18)]"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              Export report
-            </button>
-          ) : null}
         </div>
 
         <div className="mt-6 flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">

@@ -12,7 +12,9 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api", () => ({
   getEvaluation: vi.fn(),
-  getEvaluationReportHtmlUrl: vi.fn(() => "/report"),
+  getEvaluationReportHtmlUrl: vi.fn((id: string, options?: { autoPrint?: boolean }) =>
+    options?.autoPrint ? `/api/evaluations/${id}/report/html?print=1` : `/api/evaluations/${id}/report/html`,
+  ),
   subscribeToEvents: vi.fn(() => vi.fn()),
 }));
 
@@ -188,5 +190,59 @@ describe("EvaluationDetailPage", () => {
 
     expect(screen.getByText("Detailed analysis")).toBeInTheDocument();
     expect(screen.getByText("Expert notes")).toBeInTheDocument();
+  });
+
+  it("surfaces report download and print actions near the verdict", async () => {
+    vi.mocked(getEvaluation).mockResolvedValue(makeEvaluation());
+
+    render(<EvaluationDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /Download report/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: /Download report/i })).toHaveAttribute(
+      "href",
+      "/api/evaluations/eval-1/report/html",
+    );
+    expect(screen.getByRole("link", { name: /Print report/i })).toHaveAttribute(
+      "href",
+      "/api/evaluations/eval-1/report/html?print=1",
+    );
+  });
+
+  it("renders glossary explanations for framework references in findings", async () => {
+    vi.mocked(getEvaluation).mockResolvedValue(
+      makeEvaluation({
+        assessments: {
+          sentinel: makeAssessment("sentinel", {
+            findings: [
+              {
+                id: "finding-1",
+                title: "Sanitize user input",
+                severity: "high",
+                category: "Injection",
+                description: "Unsanitized input reaches a browser sink.",
+                evidence: [],
+                remediation: "Escape untrusted content before rendering.",
+                framework: "CWE-79",
+              },
+            ],
+          }),
+          watchdog: makeAssessment("watchdog"),
+          guardian: makeAssessment("guardian"),
+        },
+      }),
+    );
+
+    render(<EvaluationDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("CWE-79")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(/Cross-Site Scripting \(XSS\) — injecting scripts into web pages/i),
+    ).toBeInTheDocument();
   });
 });
