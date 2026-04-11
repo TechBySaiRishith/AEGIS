@@ -45,3 +45,12 @@ apps/web/playwright/.cache/
 # Vitest coverage output
 coverage/
 apps/api/coverage/
+
+# Agentic coding artifacts
+.claude/
+.planning/
+.code-review-graph/
+docs/superpowers/
+CLAUDE.md
+GEMINI.md
+AGENTS.md
