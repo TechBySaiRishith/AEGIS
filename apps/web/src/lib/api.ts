@@ -12,6 +12,24 @@ import { EXPERT_MODULES } from "@aegis/shared";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
+export type ProviderId = "anthropic" | "openai" | "copilot" | "github" | "custom";
+
+export type ProviderInfo = {
+  available: boolean;
+  model?: string;
+};
+
+export type HealthResponse = {
+  status: string;
+  version?: string;
+  providers: Record<ProviderId, ProviderInfo>;
+  modules: {
+    sentinel: { ready: boolean };
+    watchdog: { ready: boolean };
+    guardian: { ready: boolean };
+  };
+};
+
 type EvaluationApiPayload = Partial<Evaluation> & {
   inputType?: ApplicationProfile["inputType"];
   sourceUrl?: string | null;
@@ -143,6 +161,13 @@ export async function getEvaluation(id: string): Promise<Evaluation> {
 
   const payload = (await res.json()) as EvaluationApiPayload;
   return normalizeEvaluation(payload);
+}
+
+export async function getHealth(): Promise<HealthResponse> {
+  const res = await fetch(`${API_BASE}/api/health`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Health check failed (${res.status})`);
+
+  return res.json();
 }
 
 export function getEvaluationReportHtmlUrl(id: string, options?: { autoPrint?: boolean }): string {

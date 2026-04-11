@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EXPERT_MODULES } from "@aegis/shared";
 import type { InputType } from "@aegis/shared";
-import { submitEvaluation } from "@/lib/api";
+import { getHealth, submitEvaluation } from "@/lib/api";
 import ProviderStatusBadge from "@/components/ProviderStatusBadge";
 
 const GITHUB_URL_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+/;
@@ -63,8 +63,27 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceError, setSourceError] = useState<string | null>(null);
+  const [hasProvider, setHasProvider] = useState<boolean | null>(null);
 
   const currentInput = INPUT_TYPES.find((type) => type.value === inputType) ?? INPUT_TYPES[0];
+
+  useEffect(() => {
+    let mounted = true;
+
+    getHealth()
+      .then((health) => {
+        if (!mounted) return;
+        setHasProvider(Object.values(health.providers ?? {}).some((provider) => provider.available));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setHasProvider(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const validateSource = (value: string, type: InputType = inputType): boolean => {
     const trimmed = value.trim();
@@ -189,162 +208,183 @@ export default function Home() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="panel animate-slide-up stagger-2 rounded-[1.75rem] p-6 sm:p-7">
-            <div>
-              <div className="section-kicker">Start evaluation</div>
-              <h2 className="mt-4 text-2xl font-semibold tracking-tight">Submit an AI system</h2>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
-                Point AEGIS at a repository, transcript, or endpoint and launch the expert review.
-              </p>
-            </div>
-
-            <div className="mt-8 space-y-6">
-              <div>
-                <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                  Intake format
-                </label>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {INPUT_TYPES.map((type, index) => {
-                    const active = inputType === type.value;
-                    return (
-                      <button
-                        key={type.value}
-                        type="button"
-                        onClick={() => {
-                          setInputType(type.value);
-                          setSource("");
-                          setSourceError(null);
-                          setError(null);
-                        }}
-                        className={`panel-interactive rounded-2xl border px-4 py-4 text-left ${
-                          active
-                            ? "border-[var(--accent)]/45 bg-[var(--accent)]/10 shadow-[0_0_0_1px_rgba(34,211,238,0.15)]"
-                            : "border-white/8 bg-white/[0.025] hover:border-white/16"
-                        } ${index === 0 ? "animate-slide-up stagger-1" : index === 1 ? "animate-slide-up stagger-2" : "animate-slide-up stagger-3"}`}
-                      >
-                        <div className="text-sm font-semibold text-[var(--text)]">{type.label}</div>
-                        <div className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{type.hint}</div>
-                      </button>
-                    );
-                  })}
+          <div className="space-y-4">
+            {hasProvider === false ? (
+              <div className="rounded-[1.75rem] border border-[var(--review)]/35 bg-[var(--review-bg)] px-5 py-4 text-sm shadow-[0_18px_38px_rgba(245,158,11,0.12)]">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 text-lg text-[var(--review)]">⚠</span>
+                  <div>
+                    <div className="font-semibold text-[var(--review)]">No LLM provider configured</div>
+                    <p className="mt-1 leading-6 text-[var(--text-muted)]">
+                      Evaluations will use algorithmic analysis only with reduced depth. Add an API
+                      key to your{" "}
+                      <code className="rounded bg-[var(--review)]/15 px-1.5 py-0.5 text-xs text-[var(--review)]">
+                        .env
+                      </code>{" "}
+                      file for full expert analysis. See the README for setup instructions.
+                    </p>
+                  </div>
                 </div>
               </div>
+            ) : null}
 
-              <div className="space-y-5">
+            <form onSubmit={handleSubmit} className="panel animate-slide-up stagger-2 rounded-[1.75rem] p-6 sm:p-7">
+              <div>
+                <div className="section-kicker">Start evaluation</div>
+                <h2 className="mt-4 text-2xl font-semibold tracking-tight">Submit an AI system</h2>
+                <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                  Point AEGIS at a repository, transcript, or endpoint and launch the expert review.
+                </p>
+              </div>
+
+              <div className="mt-8 space-y-6">
                 <div>
                   <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                    {inputType === "conversation_json" ? "Conversation payload" : "Source locator"}
+                    Intake format
                   </label>
-                  {inputType === "conversation_json" ? (
-                    <div className="space-y-3">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".json,application/json"
-                        onChange={handleJsonUpload}
-                        className="hidden"
-                      />
-                      <div className="flex flex-wrap items-center gap-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {INPUT_TYPES.map((type, index) => {
+                      const active = inputType === type.value;
+                      return (
                         <button
+                          key={type.value}
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3.5 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-[var(--text)] transition duration-200 hover:border-[var(--accent)]/45 hover:bg-[var(--accent)]/10"
+                          onClick={() => {
+                            setInputType(type.value);
+                            setSource("");
+                            setSourceError(null);
+                            setError(null);
+                          }}
+                          className={`panel-interactive rounded-2xl border px-4 py-4 text-left ${
+                            active
+                              ? "border-[var(--accent)]/45 bg-[var(--accent)]/10 shadow-[0_0_0_1px_rgba(34,211,238,0.15)]"
+                              : "border-white/8 bg-white/[0.025] hover:border-white/16"
+                          } ${index === 0 ? "animate-slide-up stagger-1" : index === 1 ? "animate-slide-up stagger-2" : "animate-slide-up stagger-3"}`}
                         >
-                          <svg
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3.5 w-3.5"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M8 11V3m0 0L5.25 5.75M8 3l2.75 2.75M3 11.5v1.25C3 13.44 3.56 14 4.25 14h7.5c.69 0 1.25-.56 1.25-1.25V11.5"
-                              stroke="currentColor"
-                              strokeWidth="1.2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                          Load JSON file
+                          <div className="text-sm font-semibold text-[var(--text)]">{type.label}</div>
+                          <div className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{type.hint}</div>
                         </button>
-                        <span className="text-[0.7rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                          Import a local transcript into the payload field
-                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                      {inputType === "conversation_json" ? "Conversation payload" : "Source locator"}
+                    </label>
+                    {inputType === "conversation_json" ? (
+                      <div className="space-y-3">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".json,application/json"
+                          onChange={handleJsonUpload}
+                          className="hidden"
+                        />
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3.5 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-[var(--text)] transition duration-200 hover:border-[var(--accent)]/45 hover:bg-[var(--accent)]/10"
+                          >
+                            <svg
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3.5 w-3.5"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M8 11V3m0 0L5.25 5.75M8 3l2.75 2.75M3 11.5v1.25C3 13.44 3.56 14 4.25 14h7.5c.69 0 1.25-.56 1.25-1.25V11.5"
+                                stroke="currentColor"
+                                strokeWidth="1.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            Load JSON file
+                          </button>
+                          <span className="text-[0.7rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                            Import a local transcript into the payload field
+                          </span>
+                        </div>
+                        <textarea
+                          value={source}
+                          onChange={(event) => {
+                            setSource(event.target.value);
+                            if (sourceError) validateSource(event.target.value, "conversation_json");
+                          }}
+                          onBlur={() => validateSource(source, "conversation_json")}
+                          placeholder={currentInput.placeholder}
+                          required
+                          rows={11}
+                          className={`w-full resize-none rounded-2xl border bg-black/30 px-4 py-3.5 font-mono text-sm leading-6 text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60 ${
+                            sourceError ? "border-[var(--reject)]/60" : "border-white/10"
+                          }`}
+                        />
                       </div>
-                      <textarea
+                    ) : (
+                      <input
+                        type="text"
                         value={source}
                         onChange={(event) => {
                           setSource(event.target.value);
-                          if (sourceError) validateSource(event.target.value, "conversation_json");
+                          if (sourceError) validateSource(event.target.value);
                         }}
-                        onBlur={() => validateSource(source, "conversation_json")}
+                        onBlur={() => validateSource(source)}
                         placeholder={currentInput.placeholder}
                         required
-                        rows={11}
-                        className={`w-full resize-none rounded-2xl border bg-black/30 px-4 py-3.5 font-mono text-sm leading-6 text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60 ${
+                        className={`w-full rounded-2xl border bg-black/30 px-4 py-3.5 text-sm text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60 ${
                           sourceError ? "border-[var(--reject)]/60" : "border-white/10"
                         }`}
                       />
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={source}
-                      onChange={(event) => {
-                        setSource(event.target.value);
-                        if (sourceError) validateSource(event.target.value);
-                      }}
-                      onBlur={() => validateSource(source)}
-                      placeholder={currentInput.placeholder}
-                      required
-                      className={`w-full rounded-2xl border bg-black/30 px-4 py-3.5 text-sm text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60 ${
-                        sourceError ? "border-[var(--reject)]/60" : "border-white/10"
-                      }`}
+                    )}
+                    {sourceError ? <p className="mt-2 text-xs text-[var(--reject)]">{sourceError}</p> : null}
+                  </div>
+
+                  <div>
+                    <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                      Mission note
+                      <span className="ml-2 tracking-normal lowercase text-[var(--text-muted)]/75">optional</span>
+                    </label>
+                    <textarea
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder="Describe the deployment context, threat posture, or research objective."
+                      rows={4}
+                      className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm leading-7 text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60"
                     />
-                  )}
-                  {sourceError ? <p className="mt-2 text-xs text-[var(--reject)]">{sourceError}</p> : null}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                    Mission note
-                    <span className="ml-2 tracking-normal lowercase text-[var(--text-muted)]/75">optional</span>
-                  </label>
-                  <textarea
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Describe the deployment context, threat posture, or research objective."
-                    rows={4}
-                    className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm leading-7 text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60"
-                  />
-                </div>
+                {error ? (
+                  <div className="rounded-2xl border border-[var(--reject)]/25 bg-[var(--reject-bg)] px-4 py-3 text-sm text-[var(--reject)]">
+                    {error}
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={loading || !source.trim() || !!sourceError}
+                  className="group relative inline-flex w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--accent)]/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.95),rgba(8,145,178,0.88))] px-4 py-3.5 text-sm font-semibold text-[var(--background)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  <span className="absolute inset-y-0 left-0 w-24 animate-scan bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)] opacity-70" />
+                  <span className="relative flex items-center gap-2">
+                    {loading ? (
+                      <>
+                        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--background)]" />
+                        Initializing evaluation…
+                      </>
+                    ) : (
+                      <>Launch Council review</>
+                    )}
+                  </span>
+                </button>
               </div>
-
-              {error ? (
-                <div className="rounded-2xl border border-[var(--reject)]/25 bg-[var(--reject-bg)] px-4 py-3 text-sm text-[var(--reject)]">
-                  {error}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={loading || !source.trim() || !!sourceError}
-                className="group relative inline-flex w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--accent)]/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.95),rgba(8,145,178,0.88))] px-4 py-3.5 text-sm font-semibold text-[var(--background)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-55"
-              >
-                <span className="absolute inset-y-0 left-0 w-24 animate-scan bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)] opacity-70" />
-                <span className="relative flex items-center gap-2">
-                  {loading ? (
-                    <>
-                      <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--background)]" />
-                      Initializing evaluation…
-                    </>
-                  ) : (
-                    <>Launch Council review</>
-                  )}
-                </span>
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </section>
 

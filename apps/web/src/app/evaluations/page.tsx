@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { VERDICT_STYLES, STATUS_LABELS } from "@aegis/shared";
 import type { Evaluation, Verdict, EvaluationStatus } from "@aegis/shared";
 import { getEvaluations } from "@/lib/api";
+import { displayName } from "./display-name";
 
 function StatusBadge({ status }: { status: EvaluationStatus }) {
   const isRunning = !["completed", "failed"].includes(status);
@@ -198,12 +199,12 @@ export default function EvaluationsPage() {
                     className="group cursor-pointer border-t border-white/6 transition duration-200 hover:bg-white/[0.035]"
                   >
                     <td className="px-6 py-5 sm:px-8">
-                      <div className="space-y-2">
-                        <div className="font-semibold text-[var(--text)] transition group-hover:text-[var(--accent)]">
-                          {evaluation.application.name}
-                        </div>
-                        <div className="max-w-xl text-sm leading-6 text-[var(--text-muted)]">
-                          {evaluation.application.description || evaluation.application.sourceUrl || evaluation.id}
+                        <div className="space-y-2">
+                          <div className="font-semibold text-[var(--text)] transition group-hover:text-[var(--accent)]">
+                            {displayName(evaluation)}
+                          </div>
+                          <div className="max-w-xl text-sm leading-6 text-[var(--text-muted)]">
+                            {evaluation.application.description || evaluation.application.sourceUrl || evaluation.id}
                         </div>
                       </div>
                     </td>
