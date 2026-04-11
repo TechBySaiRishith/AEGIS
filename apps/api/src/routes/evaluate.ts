@@ -20,7 +20,7 @@ import { handleIntake } from "../intake/handler.js";
 import { SentinelAnalyzer, WatchdogAnalyzer, GuardianAnalyzer } from "../experts/index.js";
 import { parseModelSpec } from "../llm/provider.js";
 import type { LLMProvider } from "../llm/provider.js";
-import { synthesize } from "../council/index.js";
+import { synthesize, deduplicateFindings } from "../council/index.js";
 import { generateReport, renderHTMLReport } from "../reports/index.js";
 import type { EvaluationData } from "../reports/index.js";
 
@@ -205,7 +205,10 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
       return failedAssessment;
     });
 
-    // 3. Council synthesis — full arbitration pipeline
+    // 3. Cross-module deduplication — link corroborating findings
+    const dedupedAssessments = deduplicateFindings(assessments);
+
+    // 4. Council synthesis — full arbitration pipeline
     updateEvaluationStatus(evaluationId, "synthesizing");
     pushEvent(evaluationId, "status", { status: "synthesizing", message: "Council arbitrating verdict across all expert assessments…" });
 
@@ -236,7 +239,7 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
       // No LLM available — council will use algorithmic-only path
     }
 
-    const council = await synthesize(assessments, synthesizerLLM);
+    const council = await synthesize(dedupedAssessments, synthesizerLLM);
 
     saveVerdict({
       evaluationId,
