@@ -26,7 +26,7 @@ const INPUT_TYPES: { value: InputType; label: string; placeholder: string; hint:
     value: "api_endpoint",
     label: "API endpoint",
     placeholder: "https://api.example.com/v1/chat",
-    hint: "Live model or AI workflow endpoint",
+    hint: "Live endpoint — evaluates security headers, API surface, and OpenAPI specs (source code not analyzed)",
   },
 ];
 
@@ -39,7 +39,7 @@ const STEPS = [
   {
     num: "02",
     title: "Parallel expert review",
-    desc: "Sentinel, Watchdog, and Guardian execute concurrently across security, LLM behavior, and governance controls.",
+    desc: "Sentinel, Watchdog, and Guardian execute concurrently across security, AI behavior, and governance controls.",
   },
   {
     num: "03",
@@ -203,7 +203,7 @@ export default function Home() {
 
             <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">
               <span className="data-chip rounded-full px-3 py-2">Security posture</span>
-              <span className="data-chip rounded-full px-3 py-2">LLM resilience</span>
+              <span className="data-chip rounded-full px-3 py-2">AI resilience</span>
               <span className="data-chip rounded-full px-3 py-2">Governance controls</span>
             </div>
           </div>
@@ -214,14 +214,14 @@ export default function Home() {
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 text-lg text-[var(--review)]">⚠</span>
                   <div>
-                    <div className="font-semibold text-[var(--review)]">No LLM provider configured</div>
+                    <div className="font-semibold text-[var(--review)]">No AI provider configured</div>
                     <p className="mt-1 leading-6 text-[var(--text-muted)]">
-                      Evaluations will use algorithmic analysis only with reduced depth. Add an API
-                      key to your{" "}
+                      Evaluations will use automated checks only with reduced depth. Add an API key
+                      to your{" "}
                       <code className="rounded bg-[var(--review)]/15 px-1.5 py-0.5 text-xs text-[var(--review)]">
                         .env
                       </code>{" "}
-                      file for full expert analysis. See the README for setup instructions.
+                      file for deeper expert analysis. See the README for setup instructions.
                     </p>
                   </div>
                 </div>
@@ -340,9 +340,16 @@ export default function Home() {
                           sourceError ? "border-[var(--reject)]/60" : "border-white/10"
                         }`}
                       />
-                    )}
-                    {sourceError ? <p className="mt-2 text-xs text-[var(--reject)]">{sourceError}</p> : null}
-                  </div>
+                     )}
+                     {sourceError ? <p className="mt-2 text-xs text-[var(--reject)]">{sourceError}</p> : null}
+                     {inputType === "api_endpoint" ? (
+                       <div className="mt-3 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/8 px-4 py-3 text-sm leading-6 text-[var(--text-muted)]">
+                         API endpoint mode checks your live endpoint for security headers, CORS
+                         settings, and OpenAPI/Swagger specs. For full source code analysis, use
+                         GitHub URL instead.
+                       </div>
+                     ) : null}
+                   </div>
 
                   <div>
                     <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">

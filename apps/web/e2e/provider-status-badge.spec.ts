@@ -87,7 +87,7 @@ test.describe("ProviderStatusBadge — visual states", () => {
     await page.goto("/");
 
     const badge = page.getByRole("status");
-    await expect(badge).toContainText(/No LLM providers configured/i);
+    await expect(badge).toContainText(/No AI providers configured/i);
     await expect(badge).toContainText(/Configure at least one/i);
 
     await badge.locator("> div").first().screenshot({

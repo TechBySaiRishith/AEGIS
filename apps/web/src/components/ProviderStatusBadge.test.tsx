@@ -93,12 +93,12 @@ describe("ProviderStatusBadge", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/No LLM providers configured/i),
+        screen.getByText(/No AI providers configured/i),
       ).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText(/Configure at least one\s+provider/i),
+      screen.getByText(/Configure at least one AI\s+provider/i),
     ).toBeInTheDocument();
   });
 

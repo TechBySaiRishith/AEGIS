@@ -156,8 +156,8 @@ export default function EvaluationsPage() {
           <h2 className="mt-6 text-2xl font-semibold">No evaluations yet</h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--text-muted)]">
             Submit an AI application for review from the homepage — paste any public GitHub repo
-            URL, an LLM conversation JSON export, or a live API endpoint to see the full Council of
-            Experts pipeline in action.
+            URL, an AI conversation JSON export, or a live API endpoint to see the full expert
+            review pipeline in action.
           </p>
           <Link
             href="/"

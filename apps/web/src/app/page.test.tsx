@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Home from "./page";
 import type { ProviderId } from "@/lib/api";
 
@@ -60,11 +60,11 @@ describe("Home onboarding banner", () => {
     render(<Home />);
 
     await waitFor(() => {
-      expect(screen.getByText(/No LLM provider configured/i)).toBeInTheDocument();
+      expect(screen.getByText(/No AI provider configured/i)).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText(/Evaluations will use algorithmic analysis only with reduced depth/i),
+      screen.getByText(/Evaluations will use automated checks only with reduced depth/i),
     ).toBeInTheDocument();
   });
 
@@ -77,6 +77,30 @@ describe("Home onboarding banner", () => {
       expect(getHealth).toHaveBeenCalled();
     });
 
-    expect(screen.queryByText(/No LLM provider configured/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No AI provider configured/i)).not.toBeInTheDocument();
+  });
+
+  it("discloses that API endpoint intake is metadata-only", async () => {
+    vi.mocked(getHealth).mockResolvedValue(makeHealth(["copilot"]));
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(getHealth).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /API endpoint/i }));
+
+    expect(
+      screen.getByText(
+        /Live endpoint — evaluates security headers, API surface, and OpenAPI specs \(source code not analyzed\)/i,
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText(
+        /API endpoint mode checks your live endpoint for security headers, CORS settings, and OpenAPI\/Swagger specs\. For full source code analysis, use GitHub URL instead\./i,
+      ),
+    ).toBeInTheDocument();
   });
 });

@@ -138,12 +138,12 @@ function BadgeBody({ state, onSettingsClick }: { state: BadgeState; onSettingsCl
         <div className="flex items-center gap-3">
           <PulseDot color="var(--review)" />
           <span className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-[var(--review)]">
-            No LLM providers configured
+            No AI providers configured
           </span>
         </div>
         <p className="mt-2 text-xs leading-6 text-[var(--text-muted)]">
-          AEGIS is online but no provider credentials were detected. Configure at least one
-          provider so the council can render verdicts.
+          AEGIS is online but no provider credentials were detected. Configure at least one AI
+          provider so the review can produce a full verdict.
         </p>
         <button
           type="button"

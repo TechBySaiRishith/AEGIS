@@ -95,7 +95,7 @@ export default function RootLayout({
                   </div>
                 </div>
                 <p className="max-w-2xl text-[var(--text-muted)]">
-                  Adversarial evaluation for AI systems, spanning application security, LLM safety,
+                  Adversarial evaluation for AI systems, spanning application security, AI safety,
                   and governance assurance in a single command-center workflow.
                 </p>
               </div>

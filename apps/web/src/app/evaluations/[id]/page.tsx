@@ -190,6 +190,66 @@ function getNarrativeSource(evaluation: Evaluation) {
   return normalizeNarrative(evaluation.report?.executiveSummary) || normalizeNarrative(evaluation.council?.reasoning);
 }
 
+function hasCoverageRelatedLanguage(text: string) {
+  return /coverage|module minimum|failed to complete|reduced coverage|downgraded to review|insufficient coverage/i.test(
+    text,
+  );
+}
+
+function getModuleCoverageNotes({
+  verdict,
+  confidence,
+  completedModules,
+  totalModules,
+  reasoning,
+  confidenceFactors,
+}: {
+  verdict: Verdict;
+  confidence: number;
+  completedModules: number;
+  totalModules: number;
+  reasoning?: string;
+  confidenceFactors?: string[];
+}) {
+  if (totalModules === 0 || completedModules >= totalModules) return [];
+
+  const notes: string[] = [];
+  const failedModules = totalModules - completedModules;
+  const coverageSignals = [reasoning ?? "", ...(confidenceFactors ?? [])]
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .filter(hasCoverageRelatedLanguage);
+  const coverageFloorTriggered = coverageSignals.some((entry) =>
+    /downgraded to review|insufficient coverage|coverage floor|module minimum/i.test(entry),
+  );
+
+  if (confidence <= 0.5) {
+    notes.push(
+      `Confidence is reduced because fewer than ${totalModules} expert modules completed successfully.`,
+    );
+  }
+
+  if (coverageFloorTriggered && verdict === "REVIEW") {
+    notes.push(
+      `AEGIS held this result at review because only ${completedModules} of ${totalModules} expert modules completed successfully.`,
+    );
+  } else if (failedModules > 0) {
+    notes.push(
+      `${failedModules} expert module${failedModules === 1 ? "" : "s"} did not finish, so this result is based on partial coverage.`,
+    );
+  }
+
+  if (
+    coverageSignals.some((entry) =>
+      /failed to complete|reduced coverage/i.test(entry),
+    )
+  ) {
+    notes.push("Re-running the incomplete expert modules can raise confidence in the final decision.");
+  }
+
+  return Array.from(new Set(notes));
+}
+
 function isMarkdownTable(lines: string[]) {
   if (lines.length < 2) return false;
   const divider = lines[1].trim();
@@ -733,10 +793,10 @@ function OwaspLlmBreakdown({
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-            OWASP LLM Top-10 breakdown
+            AI risk category breakdown
           </div>
           <p className="mt-1 text-[0.62rem] leading-4 text-[var(--text-muted)] opacity-70">
-            How this application performs against the ten most common AI&nbsp;/&nbsp;LLM security risks
+            How this application performed across the ten common AI security risk groups reviewed by Watchdog
           </p>
         </div>
         <div
@@ -821,15 +881,22 @@ function OwaspLlmBreakdown({
       </div>
 
       <p className="mt-3 text-[0.68rem] leading-5 text-[var(--text-muted)]">
-        Counts aggregate Watchdog findings tagged with <code>OWASP-LLM0N</code>{" "}
-        framework IDs. Categories with zero findings are displayed dimmed to
-        surface coverage, not just hits.
+        Watchdog maps findings into the ten standard AI risk groups. Categories with zero findings
+        stay visible so you can see what was checked, not just what was flagged.
       </p>
     </div>
   );
 }
 
-function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: number }) {
+function VerdictBanner({
+  verdict,
+  confidence,
+  coverageNotes,
+}: {
+  verdict: Verdict;
+  confidence: number;
+  coverageNotes?: string[];
+}) {
   const style = VERDICT_STYLES[verdict] ?? VERDICT_STYLES.REVIEW;
   const confidencePercent = Math.round(confidence * 100);
 
@@ -855,12 +922,13 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
             </div>
              <div>
                <h2 className="text-4xl font-semibold tracking-[-0.04em]" style={{ color: style.color }}>
-                 {style.label}
-               </h2>
-               <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
-                 Command-center synthesis complete. This verdict reflects the consolidated judgment of Sentinel, Watchdog, and Guardian.
-               </p>
-               <div className="mt-4 flex flex-wrap gap-2">
+                  {style.label}
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
+                  This decision combines the findings from Sentinel, Watchdog, and Guardian into one
+                  review outcome.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
                  <span className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
                    Institutional review package
                  </span>
@@ -886,15 +954,15 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
               <div className="mt-1 text-[0.72rem] font-medium" style={{ color: style.color }}>
                 {confidencePercent >= 85 ? "High confidence" : confidencePercent >= 65 ? "Moderate confidence" : confidencePercent >= 45 ? "Fair confidence" : "Low confidence"}
               </div>
-              <p className="mt-0.5 text-[0.62rem] leading-4 text-[var(--text-muted)]">
-                Based on module agreement, evidence quality, and coverage depth
-              </p>
-              </div>
-              <div className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-               Audit ready
-            </div>
-          </div>
-          <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
+               <p className="mt-0.5 text-[0.62rem] leading-4 text-[var(--text-muted)]">
+                 Based on expert agreement, evidence quality, and how much of the review completed
+               </p>
+               </div>
+               <div className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                Audit ready
+             </div>
+           </div>
+           <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
             <div
               className="h-full rounded-full transition-all duration-700"
               style={{
@@ -904,6 +972,21 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
               }}
             />
           </div>
+          {coverageNotes?.length ? (
+            <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/18 px-4 py-4">
+              <div className="text-[0.68rem] uppercase tracking-[0.18em]" style={{ color: style.color }}>
+                Why this confidence is lower
+              </div>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--text-muted)]">
+                {coverageNotes.map((note) => (
+                  <li key={note} className="flex gap-2">
+                    <span style={{ color: style.color }}>•</span>
+                    <span>{note}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -986,8 +1069,8 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
               {STATUS_LABELS[evaluation.status] ?? evaluation.status}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
-              AEGIS is continuously updating the evaluation stream as expert modules complete their
-              analysis and the council prepares a verdict.
+              AEGIS keeps this page updated as expert modules finish their review and the final
+              decision is prepared.
             </p>
 
             <div className="mt-8 h-3 overflow-hidden rounded-full bg-white/8">
@@ -1002,9 +1085,9 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-[1.4rem] border border-white/8 bg-black/18 px-4 py-5">
-              <div className="metric-label">Events streamed</div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[1.4rem] border border-white/8 bg-black/18 px-4 py-5">
+              <div className="metric-label">Updates received</div>
               <div className="metric-value mt-4">{events.length.toString().padStart(2, "0")}</div>
             </div>
             <div className="rounded-[1.4rem] border border-white/8 bg-black/18 px-4 py-5">
@@ -1090,8 +1173,8 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
         <div className="panel rounded-[1.8rem] p-6 sm:p-7">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Live event stream</div>
-              <div className="mt-2 text-xl font-semibold">Telemetry feed</div>
+              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Live updates</div>
+              <div className="mt-2 text-xl font-semibold">Recent activity</div>
             </div>
             <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
               {recentEvents.length ? `${recentEvents.length} visible` : "Connecting…"}
@@ -1222,6 +1305,16 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
   ];
   const detectedModels = Array.from(new Set((evaluation.application.detectedModels ?? []).map(formatDetectedModel))).filter(Boolean);
   const securityFlags = getSecurityFlags(evaluation.application.securityProfile);
+  const coverageNotes = council
+    ? getModuleCoverageNotes({
+        verdict: council.verdict,
+        confidence: council.confidence,
+        completedModules: successfulAssessments.length,
+        totalModules: moduleIds.length,
+        reasoning: council.reasoning,
+        confidenceFactors: council.deliberation?.confidenceFactors,
+      })
+    : [];
   const stats = [
     {
       label: "Average score",
@@ -1253,7 +1346,13 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {council ? <VerdictBanner verdict={council.verdict} confidence={council.confidence} /> : null}
+      {council ? (
+        <VerdictBanner
+          verdict={council.verdict}
+          confidence={council.confidence}
+          coverageNotes={coverageNotes}
+        />
+      ) : null}
 
       {council?.verdict === "REVIEW" && totalFindings > 0 ? (
         <div className="panel rounded-[1.6rem] px-6 py-5 animate-fade-in" style={{ borderColor: "color-mix(in srgb, var(--review) 24%, transparent)", background: "linear-gradient(180deg, color-mix(in srgb, var(--review) 8%, rgba(24,24,27,0.97)), rgba(24,24,27,0.97) 60%)" }}>
@@ -1375,13 +1474,13 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
         <div className="panel rounded-[1.75rem] p-6 sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Council analysis</div>
+              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Detailed analysis</div>
               <h2 className="mt-3 text-2xl font-semibold text-[var(--text)]" style={{ fontFamily: "var(--font-display)" }}>
-                Narrative synthesis
+                Detailed analysis summary
               </h2>
             </div>
             <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              Scrollable brief
+              Full summary
             </div>
           </div>
           <div className="mt-5">
@@ -1428,8 +1527,8 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
         <section className="panel rounded-[1.75rem] p-6 sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Cross-module dialogue</div>
-              <h2 className="mt-3 text-2xl font-semibold">Council critiques</h2>
+              <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Expert comparison</div>
+              <h2 className="mt-3 text-2xl font-semibold">Expert notes</h2>
             </div>
             <div className="rounded-full border border-white/8 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
               {council.critiques.length} items
