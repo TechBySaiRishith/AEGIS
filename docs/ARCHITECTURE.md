@@ -365,8 +365,10 @@ All three experts follow the same four-step pattern:
 | Module | Strategy | Budget |
 |---|---|---|
 | **Sentinel** | Priority: entry points → AI files → config files → source files (by line count) | 50 KB total, 20 KB per file |
-| **Watchdog** | AI-relevance scoring: path patterns (0–10) + content patterns (0–20) + `aiIntegrations` boost (+15) | 100K chars total, 15K per file |
+| **Watchdog** | AI-relevance scoring: path patterns (0–10) + content patterns (0–20) + `aiIntegrations` boost (+15) | 50K chars total, 15K per file (bumped from 15K total for large AI applications) |
 | **Guardian** | Governance-relevance scoring: docs (100) → manifests (80) → config (60) → AI code (40) → data code (30) | 120K chars total, 50K per file, max 40 files |
+
+Watchdog's per-finding `framework` field is tagged with an OWASP LLM Top-10 category ID (`OWASP-LLM01` … `OWASP-LLM10`). The canonical category list lives in `@aegis/shared` (`OWASP_LLM_CATEGORIES`) so the web UI can render a per-category breakdown on the results page without reaching into API internals. See `apps/web/src/app/evaluations/[id]/page.tsx` (`OwaspLlmBreakdown`) for the component that groups Watchdog findings by category and surfaces both hit-count and worst-severity per bucket.
 
 ### Score Computation (Fallback)
 
@@ -426,25 +428,49 @@ The parser strips markdown code fences if the LLM wraps its response.
 
 Located in `apps/api/src/council/`, the synthesis pipeline has three files:
 
-### `algorithmic.ts` — Deterministic Verdict
+### `algorithmic.ts` — Deterministic 5-Pass Arbitration
 
 ```
 Thresholds:
-  REJECT_SCORE_THRESHOLD = 30
-  REVIEW_SCORE_THRESHOLD = 60
+  REJECT_SCORE_THRESHOLD        = 30
+  REVIEW_SCORE_THRESHOLD        = 60
   HIGH_FINDING_MODULE_THRESHOLD = 2
+  MIN_MODULES_FOR_APPROVE       = 2
+  COVERAGE_FLOOR_CONFIDENCE_CAP = 0.5
 ```
 
-**Decision tree:**
+**Arbitration passes (in order):**
 
 ```
-For each assessment:
-  ├── score < 30 OR has critical finding? → REJECT
-  └── (not REJECT) score < 60 OR high findings in ≥2 modules? → REVIEW
-  └── else → APPROVE
+Pass 1 — REJECT scan
+  For each COMPLETED assessment:
+    score < 30 OR has critical finding? → REJECT
 
-Confidence = mean(all scores) / 100
+Pass 2 — REVIEW scan (only if not already REJECT)
+  For each COMPLETED assessment:
+    score < 60 OR high findings in ≥2 modules? → REVIEW
+
+Coverage floor (only if current verdict is APPROVE)
+  completed_modules < 2? → downgrade APPROVE → REVIEW
+                           and cap confidence at 0.5
+
+Pass 3 — Cross-reference
+  Corroborate findings whose category appears in ≥2 modules
+
+Pass 4 — Disagreement resolution
+  Score Δ ≥ 30 or risk-level Δ ≥ 2? → defer to stricter assessment
+
+Pass 5 — Confidence calibration
+  base         = modules_agreeing / completed * 0.9
+  + tight-σ    +0.05  (3 modules, σ < 10, ≥2 agree)
+  + corroboration +0.02 per corroborated finding (cap +0.05)
+  − disagreement −0.10 per disagreement
+  − failed module −0.15 per failed module
+  [coverage-floor cap applied last, if triggered]
+  Clamp to [0.1, 0.98]
 ```
+
+Failed modules (from `status: "failed"` — typically an LLM provider error) carry a placeholder `score: 0` but are **excluded from Pass 1 / Pass 2** so a single crashed expert cannot drag the council to REJECT. Their coverage loss is accounted for in Pass 5 (−0.15 penalty per failure) and, when fewer than two complete, by the coverage floor.
 
 The algorithmic verdict is **always** computed and is **never** overridden by the LLM.
 
@@ -576,8 +602,9 @@ AEGIS is designed to produce useful results even when components fail:
 | Failure | Behavior |
 |---|---|
 | **Repository clone fails** | Pipeline aborts with `status: "failed"` and error message |
-| **One expert fails** | Other experts continue; failed expert creates `status: "failed"` assessment with `score: 0` |
-| **All experts fail** | Algorithmic verdict returns `REJECT` with `confidence: 0` |
+| **One expert fails** | Other experts continue; failed expert creates `status: "failed"` assessment with `score: 0`. Failed modules are excluded from Pass 1/Pass 2 scans so a single crash cannot drag the council to REJECT. |
+| **Two experts fail (only 1 completes)** | **Coverage floor triggers:** APPROVE is downgraded to REVIEW because a single surviving module has no independent corroboration. Confidence is capped at `0.5`. REJECT is **not** downgraded — the council always defers to the stricter assessment. |
+| **All experts fail** | Algorithmic verdict returns `REJECT` with `confidence: 0.1`; arbitration log records zero-coverage reason. |
 | **LLM critique round fails** | Falls back to algorithmic-only verdict (no LLM enhancement) |
 | **Synthesis prompt fails** | Falls back to critique-only or algorithmic-only reasoning |
 | **Report generation fails** | Returns `500` with error message; evaluation data remains accessible |
@@ -612,12 +639,60 @@ The `LLMError` class distinguishes between:
 
 ### Confidence Adjustment
 
-When modules fail, the algorithmic verdict reduces confidence:
+When modules fail, the algorithmic verdict reduces confidence and — when coverage drops below the minimum for independent corroboration — downgrades the verdict itself:
 
 ```typescript
+// Per-failure penalty on conviction
 if (failedModules > 0) {
-  confidence = Math.max(0.2, confidence - 0.15 * failedModules);
+  confidence = Math.max(0.1, confidence - 0.15 * failedModules);
+}
+
+// Coverage floor: APPROVE requires ≥2 completed modules. A lone module
+// has no independent corroboration, so we downgrade and cap confidence.
+const MIN_MODULES_FOR_APPROVE = 2;
+const COVERAGE_FLOOR_CONFIDENCE_CAP = 0.5;
+
+if (verdict === "APPROVE" && completedModules.length < MIN_MODULES_FOR_APPROVE) {
+  verdict = "REVIEW";
+  confidence = Math.min(confidence, COVERAGE_FLOOR_CONFIDENCE_CAP);
 }
 ```
 
-This ensures that verdicts with missing data are flagged as lower-confidence.
+This ensures that:
+1. Verdicts with missing data are flagged with lower confidence.
+2. The council never issues a high-confidence APPROVE on the word of a single module. A safety-driven REJECT from a lone surviving module is preserved — the floor only blocks APPROVE, not stricter verdicts.
+
+---
+
+## Testing & Coverage
+
+AEGIS enforces a multi-layer test pyramid with hard coverage thresholds in CI.
+
+### Layers
+
+| Layer | Location | Runs on |
+|---|---|---|
+| **Unit** — pure logic (council arbitration, intake profiling, report builders, LLM registry) | `apps/api/src/**/*.test.ts` | Every push / PR |
+| **Integration** — full pipeline wired with a fake LLM provider (`FakeLLMProvider`) | `apps/api/src/pipeline.integration.test.ts` | Every push / PR |
+| **Component** — React Testing Library for web components (`ProviderStatusBadge`, etc.) | `apps/web/src/**/*.test.tsx` | Every push / PR |
+| **E2E** — Playwright running `next dev` against intercepted `/api/health` routes | `apps/web/e2e/*.spec.ts` | Every push / PR |
+
+### Coverage Thresholds
+
+The API test suite runs with `@vitest/coverage-v8` against a curated include list (core logic files that have direct unit tests; glue files are exercised via the integration test layer). Thresholds are enforced both globally and per-file for safety-critical modules:
+
+| File | Lines | Branches | Functions | Statements |
+|---|---|---|---|---|
+| **Global floor** (all included files) | 74 | 67 | 85 | 74 |
+| `src/council/algorithmic.ts` (verdict core) | 95 | 92 | 98 | 95 |
+| `src/intake/analyze.ts` | 73 | 63 | 90 | 73 |
+| `src/reports/generator.ts` | 78 | 57 | 95 | 78 |
+| `src/llm/registry.ts` | 82 | 73 | 95 | 82 |
+
+Run locally:
+
+```bash
+pnpm --filter @aegis/api test:coverage
+```
+
+CI wires this via `.github/workflows/ci.yml` as a dedicated "Enforce api coverage thresholds" step. Regressions below any floor fail the build.
