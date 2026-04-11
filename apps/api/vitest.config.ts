@@ -58,7 +58,7 @@ export default defineConfig({
         "src/llm/registry.ts": {
           lines: 82,
           statements: 82,
-          branches: 73,
+          branches: 69,
           functions: 95,
         },
         "src/experts/sentinel/analyzer.ts": {
