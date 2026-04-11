@@ -190,18 +190,12 @@ export default function Home() {
           </div>
 
           <form onSubmit={handleSubmit} className="panel animate-slide-up stagger-2 rounded-[1.75rem] p-6 sm:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="section-kicker">Start evaluation</div>
-                <h2 className="mt-4 text-2xl font-semibold tracking-tight">Submit an AI system</h2>
-                <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
-                  Point AEGIS at a repository, transcript, or endpoint and launch the expert review.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 px-4 py-3 text-right">
-                <div className="metric-label">Mode</div>
-                <div className="mt-2 text-sm font-semibold text-[var(--accent)]">Dark operations</div>
-              </div>
+            <div>
+              <div className="section-kicker">Start evaluation</div>
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight">Submit an AI system</h2>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                Point AEGIS at a repository, transcript, or endpoint and launch the expert review.
+              </p>
             </div>
 
             <div className="mt-8 space-y-6">

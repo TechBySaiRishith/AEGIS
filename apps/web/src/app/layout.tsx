@@ -104,7 +104,7 @@ export default function RootLayout({
                 <div className="text-[0.68rem] uppercase tracking-[0.28em] text-[var(--text-muted)]/80">
                   United Nations International Computing Centre
                 </div>
-                <div>Security research interface · dark operations mode</div>
+                <div>Security research interface</div>
                 <div className="text-xs text-[var(--text-muted)]/70">
                   Council synthesis, audit-ready reporting, and institutional-grade review.
                 </div>
