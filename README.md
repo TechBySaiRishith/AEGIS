@@ -271,14 +271,16 @@ Wait for the health checks to pass (about 30 seconds), then:
 
 | Service | URL |
 |---|---|
-| **Web UI** | [http://localhost:3000](http://localhost:3000) |
-| **API** | [http://localhost:3001](http://localhost:3001) |
-| **Health** | [http://localhost:3001/api/health](http://localhost:3001/api/health) |
+| **Web UI** | [http://localhost:5555](http://localhost:5555) |
+| **API** (proxied through the web server) | [http://localhost:5555/api](http://localhost:5555/api) |
+| **Health** | [http://localhost:5555/api/health](http://localhost:5555/api/health) |
+
+> In Docker mode a single container serves both the Next.js web UI and the Hono API on port **5555**. The API is exposed via the `/api/*` path prefix — the Next.js server proxies those requests to the internal API process. Use `5555` for every `curl` example in the API Reference below.
 
 ### Test with a real evaluation
 
 ```bash
-curl -X POST http://localhost:3001/api/evaluate \
+curl -X POST http://localhost:5555/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{
     "inputType": "github_url",
@@ -297,7 +299,7 @@ Response:
 
 Then poll for results:
 ```bash
-curl http://localhost:3001/api/evaluations/abc123...
+curl http://localhost:5555/api/evaluations/abc123...
 ```
 
 ### Use with a specific LLM provider
@@ -349,6 +351,8 @@ pnpm docker:down      # Stop Docker containers
 
 All API endpoints are prefixed with `/api/`. For a detailed reference with full schemas, see [`docs/API.md`](docs/API.md).
 
+> **Port note:** the examples below use `localhost:5555`, which is the Docker-mode port (the Next.js web server proxies `/api/*` to the internal API). In local-development mode (`pnpm dev`), the API binds directly to `localhost:3001` — substitute `5555` → `3001` in every example if you are not using Docker.
+
 ### Health Check
 
 ```
@@ -358,7 +362,7 @@ GET /api/health
 Returns server status, LLM provider availability, and module readiness.
 
 ```bash
-curl http://localhost:3001/api/health
+curl http://localhost:5555/api/health
 ```
 
 ```json
@@ -388,7 +392,7 @@ POST /api/evaluate
 Starts a new evaluation. The pipeline runs asynchronously — the response returns immediately with an evaluation ID.
 
 ```bash
-curl -X POST http://localhost:3001/api/evaluate \
+curl -X POST http://localhost:5555/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{
     "inputType": "github_url",
@@ -418,7 +422,7 @@ GET /api/evaluations
 ```
 
 ```bash
-curl http://localhost:3001/api/evaluations
+curl http://localhost:5555/api/evaluations
 ```
 
 Returns an array of all evaluations with their current status.
@@ -430,7 +434,7 @@ GET /api/evaluations/:id
 ```
 
 ```bash
-curl http://localhost:3001/api/evaluations/V1StGXR8_Z5jdHi6B-myT
+curl http://localhost:5555/api/evaluations/V1StGXR8_Z5jdHi6B-myT
 ```
 
 Returns the full evaluation object including status, assessments, and verdict (once completed).
@@ -444,7 +448,7 @@ GET /api/evaluations/:id/events
 Real-time Server-Sent Events stream for an evaluation. Replays past events on connect, then streams live updates until the evaluation completes or fails.
 
 ```bash
-curl -N http://localhost:3001/api/evaluations/V1StGXR8_Z5jdHi6B-myT/events
+curl -N http://localhost:5555/api/evaluations/V1StGXR8_Z5jdHi6B-myT/events
 ```
 
 ### JSON Report
@@ -456,7 +460,7 @@ GET /api/evaluations/:id/report
 Returns a structured JSON report. Only available after the evaluation has completed.
 
 ```bash
-curl http://localhost:3001/api/evaluations/V1StGXR8_Z5jdHi6B-myT/report
+curl http://localhost:5555/api/evaluations/V1StGXR8_Z5jdHi6B-myT/report
 ```
 
 ### HTML Report
@@ -469,7 +473,7 @@ Returns a self-contained HTML safety report (styled, printable) for the complete
 
 ```bash
 # Open in browser:
-open "http://localhost:3001/api/evaluations/V1StGXR8_Z5jdHi6B-myT/report/html"
+open "http://localhost:5555/api/evaluations/V1StGXR8_Z5jdHi6B-myT/report/html"
 ```
 
 ---
