@@ -8,6 +8,7 @@ import type {
 import type { LLMProvider } from "../llm/provider.js";
 import { computeAlgorithmicVerdict } from "./algorithmic.js";
 import { runCritiqueRound } from "./critique.js";
+import { log } from "../logger.js";
 import { buildSynthesisPrompt, CRITIQUE_SYSTEM_PROMPT } from "./prompts.js";
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -162,10 +163,9 @@ export async function synthesize(
         ],
       };
     } catch (error) {
-      console.warn(
-        "[council] LLM critique round failed, using algorithmic verdict only:",
-        error instanceof Error ? error.message : error,
-      );
+      log.warn("council", "LLM critique round failed, using algorithmic verdict only", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

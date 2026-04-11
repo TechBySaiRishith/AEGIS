@@ -23,6 +23,7 @@ import type { LLMProvider } from "../llm/provider.js";
 import { synthesize, deduplicateFindings } from "../council/index.js";
 import { generateReport, renderHTMLReport } from "../reports/index.js";
 import type { EvaluationData } from "../reports/index.js";
+import { log } from "../logger.js";
 
 const evaluate = new Hono();
 
@@ -266,7 +267,7 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
     pushEvent(evaluationId, "complete", { message: "Evaluation finished." });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[evaluate] Pipeline failed for ${evaluationId}: ${message}`);
+    log.error("evaluate", `Pipeline failed for ${evaluationId}`, { error: message });
 
     updateEvaluationStatus(evaluationId, "failed", { error: message });
     pushEvent(evaluationId, "error", { error: message });

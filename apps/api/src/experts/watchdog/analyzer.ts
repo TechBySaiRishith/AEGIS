@@ -8,6 +8,7 @@ import type {
   Severity,
 } from "@aegis/shared";
 import { EXPERT_MODULES } from "@aegis/shared";
+import { log } from "../../logger.js";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
@@ -369,7 +370,7 @@ export class WatchdogAnalyzer implements ExpertModule {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[watchdog] Analysis failed: ${message}`);
+      log.error("watchdog", "Analysis failed", { error: message });
       return this.failedAssessment(message, llm.model);
     }
   }

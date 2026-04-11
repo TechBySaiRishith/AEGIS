@@ -8,6 +8,7 @@ import type {
   Severity,
 } from "@aegis/shared";
 import { EXPERT_MODULES } from "@aegis/shared";
+import { log } from "../../logger.js";
 import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
@@ -304,7 +305,7 @@ export class GuardianAnalyzer implements ExpertModule {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : String(error);
-      console.error(`[guardian] Analysis failed: ${message}`);
+      log.error("guardian", "Analysis failed", { error: message });
 
       return {
         moduleId: "guardian",

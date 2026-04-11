@@ -6,6 +6,7 @@ import { config, validateConfig, availableProviders } from "./config.js";
 import { health } from "./routes/health.js";
 import { evaluate } from "./routes/evaluate.js";
 import { configRoutes } from "./routes/config.js";
+import { log } from "./logger.js";
 
 // ─── Validate environment before anything else ─────────────
 
@@ -21,7 +22,7 @@ app.use("*", logger());
 
 // Global error handler
 app.onError((err, c) => {
-  console.error("[AEGIS] Unhandled error:", err);
+  log.error("aegis", "Unhandled error", { error: err.message ?? String(err) });
   return c.json({ error: err.message ?? "Internal server error" }, 500);
 });
 
