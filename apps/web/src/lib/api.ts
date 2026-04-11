@@ -229,3 +229,39 @@ export function subscribeToEvents(id: string, onEvent: (event: SSEEvent) => void
     es = null;
   };
 }
+
+// ─── Provider Configuration ────────────────────────────────
+
+export type ConfigurableProviderId = "anthropic" | "openai" | "copilot" | "github";
+
+export type ProviderConfigEntry = {
+  id: ConfigurableProviderId;
+  configured: boolean;
+  model?: string;
+  isDefault: boolean;
+};
+
+export async function getProviders(): Promise<ProviderConfigEntry[]> {
+  const res = await fetch(`${API_BASE}/api/config/providers`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch providers (${res.status})`);
+  const data = (await res.json()) as { providers: ProviderConfigEntry[] };
+  return data.providers;
+}
+
+export async function configureProvider(
+  provider: string,
+  apiKey: string,
+): Promise<{ success: boolean; configured: boolean; model?: string }> {
+  const res = await fetch(`${API_BASE}/api/config/providers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, apiKey }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? `Configuration failed (${res.status})`);
+  }
+
+  return res.json();
+}

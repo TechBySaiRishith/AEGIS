@@ -5,6 +5,7 @@ import { serve } from "@hono/node-server";
 import { config, validateConfig, availableProviders } from "./config.js";
 import { health } from "./routes/health.js";
 import { evaluate } from "./routes/evaluate.js";
+import { configRoutes } from "./routes/config.js";
 
 // ─── Validate environment before anything else ─────────────
 
@@ -29,6 +30,7 @@ app.onError((err, c) => {
 app.route("/api/health", health);
 app.route("/api/evaluate", evaluate);
 app.route("/api/evaluations", evaluate);
+app.route("/api/config", configRoutes);
 
 // ─── Startup banner ────────────────────────────────────────
 
