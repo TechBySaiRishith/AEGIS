@@ -26,7 +26,7 @@ export type EvaluationStatus =
 
 export type ExpertModuleId = "sentinel" | "watchdog" | "guardian";
 
-export type LLMProvider = "anthropic" | "openai" | "copilot" | "github" | "custom";
+export type LLMProvider = "anthropic" | "openai" | "copilot" | "github" | "custom" | "mock";
 
 // ─── LLM Configuration ────────────────────────────────────
 
@@ -282,6 +282,8 @@ export interface EvaluateRequest {
   inputType: InputType;
   source: string; // URL, file path, or endpoint
   description?: string;
+  /** URL pointing to a conversation JSON file (alternative to inline source for conversation_json) */
+  sourceUrl?: string;
   /** Per-request model overrides for ablation studies (e.g. { sentinel: "copilot/gpt-5.4" }) */
   models?: Partial<Record<ExpertModuleId | "synthesizer", string>>;
 }

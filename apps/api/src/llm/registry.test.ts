@@ -67,10 +67,12 @@ describe("LLMRegistry", () => {
     resetLLMRegistry();
   });
 
-  it("discovers zero providers when no env keys are set", () => {
+  it("discovers only the mock provider when no env keys are set", () => {
     const registry = new LLMRegistry();
-    expect(registry.listProviders()).toEqual([]);
-    expect(registry.getDefault()).toBeUndefined();
+    const providers = registry.listProviders();
+    expect(providers).toHaveLength(1);
+    expect(providers[0].id).toBe("mock");
+    expect(registry.getDefault()?.id).toBe("mock");
   });
 
   it("registers the Anthropic provider when ANTHROPIC_API_KEY is set", () => {
@@ -120,11 +122,10 @@ describe("LLMRegistry", () => {
     warn.mockRestore();
   });
 
-  it("getProviderForModule throws when no providers are registered", () => {
+  it("getProviderForModule returns mock when no real providers are registered", () => {
     const registry = new LLMRegistry();
-    expect(() => registry.getProviderForModule("sentinel")).toThrow(
-      /No LLM provider available/,
-    );
+    const provider = registry.getProviderForModule("sentinel");
+    expect(provider.id).toBe("mock");
   });
 
   it("healthStatus reports every known provider with availability", () => {

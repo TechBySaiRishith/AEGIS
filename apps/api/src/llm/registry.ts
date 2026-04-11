@@ -14,6 +14,7 @@ import {
   createCustomProvider,
 } from "./openai-compat.js";
 import { CopilotProvider, isCopilotAvailable } from "./copilot.js";
+import { MockProvider } from "./mock.js";
 
 // ─── Default models per provider ─────────────────────────────
 
@@ -23,6 +24,7 @@ const DEFAULT_MODELS: Record<LLMProviderType, string> = {
   copilot: "claude-sonnet-4.5",
   github: "gpt-4.1-mini",
   custom: "default",
+  mock: "mock-demo-v1",
 };
 
 // ─── Registry ────────────────────────────────────────────────
@@ -70,6 +72,11 @@ export class LLMRegistry {
       this.register(createCustomProvider(modelFor("custom")));
     }
 
+    // Mock/demo fallback when no real API keys are configured
+    if (this.providers.size === 0) {
+      this.register(new MockProvider());
+    }
+
     // Resolve default
     this.defaultProvider = this.resolveDefault();
   }
@@ -95,6 +102,7 @@ export class LLMRegistry {
       "openai",
       "github",
       "custom",
+      "mock",
     ];
     for (const p of order) {
       if (this.providers.has(p)) return p;
@@ -193,6 +201,8 @@ export class LLMRegistry {
         return createGitHubModelsProvider(model);
       case "custom":
         return createCustomProvider(model);
+      case "mock":
+        return new MockProvider();
     }
   }
 
@@ -222,6 +232,7 @@ export class LLMRegistry {
       "copilot",
       "github",
       "custom",
+      "mock",
     ];
     const result = {} as Record<
       LLMProviderType,

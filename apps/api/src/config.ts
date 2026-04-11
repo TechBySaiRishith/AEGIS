@@ -71,7 +71,8 @@ export function validateConfig(): void {
     console.warn(
       "⚠️  No LLM API key configured. Set at least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, " +
         "GITHUB_TOKEN, COPILOT_GITHUB_TOKEN, or CUSTOM_LLM_BASE_URL+CUSTOM_LLM_API_KEY.\n" +
-        "The server will start, but evaluation endpoints will fail until a provider is configured."
+        "Running in DEMO mode — evaluations will use a mock provider with synthetic findings.\n" +
+        "Configure a real provider for production use."
     );
   }
 }
