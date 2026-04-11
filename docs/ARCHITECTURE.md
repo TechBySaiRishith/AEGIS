@@ -39,6 +39,10 @@ The API server is the core — it orchestrates the full evaluation pipeline from
 @aegis/api ──── HTTP/SSE ───► @aegis/web
 ```
 
+### Deployment Model
+
+AEGIS is designed for zero-friction deployment: `docker compose up --build` provisions the entire stack — API server, SQLite database, and health checks — with no manual configuration required. The health endpoint (`/api/health`) confirms all three expert modules are ready before accepting evaluations, ensuring the system never produces partial results due to incomplete initialization. Cross-platform development is supported via `npm-run-all2` for parallel process orchestration, avoiding shell-specific idioms.
+
 ---
 
 ## Module Communication Patterns
@@ -370,6 +374,10 @@ All three experts follow the same four-step pattern:
 
 Watchdog's per-finding `framework` field is tagged with an OWASP LLM Top-10 category ID (`OWASP-LLM01` … `OWASP-LLM10`). The canonical category list lives in `@aegis/shared` (`OWASP_LLM_CATEGORIES`) so the web UI can render a per-category breakdown on the results page without reaching into API internals. See `apps/web/src/app/evaluations/[id]/page.tsx` (`OwaspLlmBreakdown`) for the component that groups Watchdog findings by category and surfaces both hit-count and worst-severity per bucket.
 
+### Module Independence and Cross-Module Deduplication
+
+Each expert module operates within a strictly bounded analysis domain. Sentinel examines code-level security using CWE/OWASP frameworks. Watchdog evaluates LLM-specific threats against the OWASP LLM Top 10 and Cisco AI taxonomy. Guardian assesses governance posture via NIST AI RMF, EU AI Act, and UNICC Responsible AI principles. The modules share no state, use independent file-selection strategies, and run concurrently via `Promise.allSettled()` — a module failure does not block the others. Cross-module finding deduplication links overlapping detections without removing either module's assessment, preserving analytical independence while surfacing corroboration.
+
 ### Score Computation (Fallback)
 
 When the LLM doesn't return a numeric score, each expert derives one from findings:
@@ -696,3 +704,5 @@ pnpm --filter @aegis/api test:coverage
 ```
 
 CI wires this via `.github/workflows/ci.yml` as a dedicated "Enforce api coverage thresholds" step. Regressions below any floor fail the build.
+
+The test suite spans four CI layers: unit tests for pure functions (parsing, scoring, finding generation), integration tests verifying the full pipeline with mock LLM providers, component tests for frontend UI elements, and Playwright end-to-end tests exercising browser-level flows. Coverage thresholds are enforced per-file for safety-critical modules (algorithmic verdict at 95%+ line coverage) and globally across all tested code. No hardcoded secrets appear anywhere in the codebase — all credentials use placeholder values in `.env.example` and are loaded via environment variables at runtime.

@@ -187,6 +187,8 @@ The HTML report (`/api/evaluations/:id/report/html`) renders the same data as a 
 
 The verdict is computed **algorithmically** via a deterministic 5-pass arbitration — no LLM is needed for the final decision:
 
+The council's 5-pass deterministic arbitration produces a verdict without requiring any LLM. Pass 1 scans for automatic REJECT triggers (critical findings or scores below 30). Pass 2 scans for REVIEW triggers. Pass 3 detects cross-module corroborations that strengthen confidence. Pass 4 resolves disagreements by deferring to the stricter assessment — when modules diverge, the rationale identifies each module's dominant concern and explains the safety-margin policy. Pass 5 calibrates confidence using finding density, severity distribution, and module completion coverage. A coverage floor caps confidence at 50% when fewer than two modules complete successfully, ensuring the council never over-commits on insufficient evidence.
+
 ```
 Pass 1 — REJECT scan   Any completed module score < 30 OR any critical finding
 Pass 2 — REVIEW scan   Any completed module score < 60 OR high findings in ≥ 2 modules
@@ -284,6 +286,8 @@ Final confidence is clamped to `[0.1, 0.98]`.
 | **API reference** | `docs/API.md`: every endpoint with curl examples, request/response schemas, SSE event format, type reference |
 | **Evaluator guide** | `docs/EVALUATION.md` (this file): step-by-step setup, test scenarios, rubric mapping |
 | **Code documentation** | JSDoc on key interfaces, inline comments on non-obvious logic, well-named functions |
+
+AEGIS documentation is maintained across four files: README.md (quickstart and configuration), ARCHITECTURE.md (system design and failure modes), API.md (endpoint reference and integration), and this file (evaluation methodology and framework mapping). All decision thresholds are declared as named constants with no magic numbers. The codebase follows strict TypeScript with shared types via `@aegis/shared`, and the monorepo structure cleanly separates API, web, and shared concerns.
 
 ---
 

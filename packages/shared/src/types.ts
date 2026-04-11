@@ -84,6 +84,9 @@ export interface ApplicationProfile {
   /** Data handling patterns detected */
   dataHandling?: DataHandlingPattern[];
 
+  /** HTTP security headers observed on a live API endpoint */
+  securityHeaders?: Record<string, string>;
+
   /**
    * Smart excerpts from large source files that exceed normal read limits.
    * Keys are relative file paths; values are concatenated key sections

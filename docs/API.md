@@ -8,6 +8,10 @@ Complete API reference for the AEGIS AI Safety Lab backend.
 
 All endpoints are prefixed with `/api/`. The API uses JSON for request and response bodies except where noted (SSE, HTML). Every example below uses the local-dev port `3001`; substitute `5555` if you are on Docker.
 
+## Overview
+
+The API accepts applications through four intake modes — GitHub repository URLs, conversation JSON exports, live API endpoints with active probing, and freeform text descriptions — providing flexible input for diverse evaluation scenarios. Each intake mode produces a normalized `ApplicationProfile` that feeds identically into the expert pipeline, ensuring consistent analysis regardless of input format.
+
 ---
 
 ## Table of Contents
@@ -287,6 +291,8 @@ The response includes the full evaluation object. When `status` is `"completed"`
 
 Server-Sent Events stream for real-time evaluation progress. Replays past events on connect, then streams live updates.
 
+Real-time progress is streamed via Server-Sent Events (SSE) at `/api/evaluations/:id/events`, providing named stage updates (cloning → analyzing → per-module progress → synthesizing → verdict) suitable for both programmatic consumers and the live dashboard. The evaluation lifecycle is fully observable: every state transition is persisted to the database and broadcast to connected clients.
+
 **Request:**
 
 ```bash
@@ -404,6 +410,8 @@ A self-contained HTML document with:
 - Per-module sections with findings tables
 - Severity badges
 - Council analysis
+
+Both JSON and self-contained HTML reports are available. The HTML report is designed for non-technical stakeholders — it uses plain-language summaries, color-coded verdicts, and printable formatting. Every finding includes a file path, line number, code snippet, concrete attack scenario, and specific remediation guidance. The executive summary varies its narrative structure by verdict severity to provide contextual, non-formulaic prose.
 
 **Error Responses:**
 
