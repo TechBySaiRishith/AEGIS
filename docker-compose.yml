@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5555:5555"
+    restart: unless-stopped
     env_file: .env
     volumes:
       - ./data:/app/data
