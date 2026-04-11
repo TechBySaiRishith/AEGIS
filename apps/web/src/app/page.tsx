@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { EXPERT_MODULES } from "@aegis/shared";
 import type { InputType } from "@aegis/shared";
 import { submitEvaluation } from "@/lib/api";
+import ProviderStatusBadge from "@/components/ProviderStatusBadge";
 
 const GITHUB_URL_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+/;
 
@@ -166,6 +167,8 @@ export default function Home() {
                 analysis in one authoritative workflow.
               </p>
             </div>
+
+            <ProviderStatusBadge />
 
             <div className="grid gap-4 sm:grid-cols-3">
               {HERO_METRICS.map((metric, index) => (
