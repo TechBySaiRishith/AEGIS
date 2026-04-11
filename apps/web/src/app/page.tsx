@@ -13,7 +13,7 @@ const INPUT_TYPES: { value: InputType; label: string; placeholder: string; hint:
   {
     value: "github_url",
     label: "GitHub URL",
-    placeholder: "https://github.com/FlashCarrot/VeriMedia",
+    placeholder: "https://github.com/org/your-ai-app",
     hint: "Repository or branch to inspect",
   },
   {

@@ -154,11 +154,9 @@ export default function EvaluationsPage() {
           </div>
           <h2 className="mt-6 text-2xl font-semibold">No evaluations yet</h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--text-muted)]">
-            Submit an AI application for review from the homepage. Try evaluating{" "}
-            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-[var(--accent)]">
-              https://github.com/FlashCarrot/VeriMedia
-            </code>{" "}
-            to see the full Council of Experts pipeline in action.
+            Submit an AI application for review from the homepage — paste any public GitHub repo
+            URL, an LLM conversation JSON export, or a live API endpoint to see the full Council of
+            Experts pipeline in action.
           </p>
           <Link
             href="/"
