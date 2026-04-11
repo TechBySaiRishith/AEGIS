@@ -2,7 +2,9 @@
   "name": "aegis",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @aegis/api dev & pnpm --filter @aegis/web dev",
+    "dev": "run-p dev:api dev:web",
+    "dev:api": "pnpm --filter @aegis/api dev",
+    "dev:web": "pnpm --filter @aegis/web dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
@@ -16,5 +18,8 @@
     "onlyBuiltDependencies": [
       "better-sqlite3"
     ]
+  },
+  "devDependencies": {
+    "npm-run-all2": "^8.0.4"
   }
 }

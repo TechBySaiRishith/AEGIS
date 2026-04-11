@@ -640,7 +640,7 @@ AEGIS supports multiple LLM providers simultaneously through its **LLM Registry*
 | **GitHub Models** | `GITHUB_TOKEN` | `gpt-4o` |
 | **Custom** (OpenAI-compatible) | `CUSTOM_LLM_BASE_URL` + `CUSTOM_LLM_API_KEY` | `default` |
 
-> **`better-sqlite3` native binary:** pnpm is configured via `pnpm.onlyBuiltDependencies` (root `package.json`) to run the `better-sqlite3` install script, which downloads a prebuilt binary via `prebuild-install` for Node 20 on Linux/macOS/Windows. No C++ toolchain is required on standard platforms. If a prebuilt is unavailable for your specific Node ABI, `prebuild-install` falls back to a source build — in that case, install build tools (`build-essential` on Debian/Ubuntu, Xcode CLT on macOS) or use the Docker image (`pnpm docker:up`), which ships with the toolchain baked in.
+> **`better-sqlite3` native binary:** Prebuilt binaries are published for **Node 18, 20, and 22** on Linux (x64, arm64), macOS (x64, arm64), and Windows (x64). The `pnpm.onlyBuiltDependencies` config in root `package.json` ensures `prebuild-install` runs automatically during `pnpm install` — no C++ toolchain is required on these platforms. If you're using a non-standard Node version or architecture, `prebuild-install` falls back to a source build, which requires build tools (`build-essential` on Debian/Ubuntu, Xcode CLT on macOS). For the smoothest experience on unsupported configurations, use Docker: `pnpm docker:up` — it ships with the toolchain baked in.
 
 ### Copilot Provider (GitHub Copilot Enterprise)
 
