@@ -94,29 +94,39 @@ function detectDisagreements(assessments: ExpertAssessment[]): string[] {
     for (let j = i + 1; j < assessments.length; j++) {
       const a = assessments[i];
       const b = assessments[j];
-      const scoreDiff = Math.abs(a.score - b.score);
+      if (a.status === "failed" || b.status === "failed") continue;
 
-      if (scoreDiff >= 30) {
-        const higher = a.score >= b.score ? a : b;
-        const lower = a.score >= b.score ? b : a;
+      const scoreDelta = Math.abs(a.score - b.score);
+
+      if (scoreDelta >= 30) {
+        // Extract dominant concern from each module for context
+        const aConcern = a.findings.length > 0
+          ? a.findings.sort((x, y) => sevWeight(y.severity) - sevWeight(x.severity))[0].category
+          : "overall risk";
+        const bConcern = b.findings.length > 0
+          ? b.findings.sort((x, y) => sevWeight(y.severity) - sevWeight(x.severity))[0].category
+          : "overall risk";
+
+        const stricter = a.score < b.score ? a : b;
+        const lenient = a.score < b.score ? b : a;
+        const stricterConcern = a.moduleName === stricter.moduleName ? aConcern : bConcern;
+        const lenientConcern = a.moduleName === lenient.moduleName ? aConcern : bConcern;
+
         disagreements.push(
-          `${higher.moduleName} scored ${higher.score}/100 (${higher.riskLevel} risk) ` +
-          `while ${lower.moduleName} scored ${lower.score}/100 (${lower.riskLevel} risk) — ` +
-          `Δ${scoreDiff} point divergence. Arbitration defers to the stricter assessment ` +
-          `from ${lower.moduleName} to maintain safety margins.`,
+          `${stricter.moduleName} (score ${stricter.score}, top concern: ${stricterConcern}) ` +
+          `assessed significantly higher risk than ${lenient.moduleName} (score ${lenient.score}, focused on ${lenientConcern}) — ` +
+          `Δ${scoreDelta} points. Arbitration defers to the stricter assessment from ${stricter.moduleName} to maintain safety margins.`,
         );
       }
 
       // Check risk level disagreements even when scores are close
-      const riskA = sevWeight(a.riskLevel);
-      const riskB = sevWeight(b.riskLevel);
-      if (Math.abs(riskA - riskB) >= 2 && scoreDiff < 30) {
-        const stricter = riskA > riskB ? a : b;
-        const lenient = riskA > riskB ? b : a;
+      const aRisk = sevWeight(a.riskLevel);
+      const bRisk = sevWeight(b.riskLevel);
+      if (Math.abs(aRisk - bRisk) >= 2 && scoreDelta < 30) {
         disagreements.push(
-          `Risk-level conflict: ${stricter.moduleName} rates ${stricter.riskLevel} risk ` +
-          `while ${lenient.moduleName} rates ${lenient.riskLevel} risk on the same application. ` +
-          `Council defers to ${stricter.moduleName}'s stricter assessment.`,
+          `Risk-level conflict: ${a.moduleName} rated risk as "${a.riskLevel}" while ${b.moduleName} rated "${b.riskLevel}" — ` +
+          `a qualitative divergence despite similar scores (${a.score} vs ${b.score}), ` +
+          `indicating different threat model priorities.`,
         );
       }
     }
@@ -319,6 +329,17 @@ export function computeAlgorithmicVerdict(
   // ── Pass 4: Disagreement resolution ────────────────────────
   const disagreements = detectDisagreements(assessments);
 
+  // Three-way divergence: when all pairwise comparisons produce
+  // disagreements, the threat landscape is genuinely uncertain.
+  const arbitrationExtras: string[] = [];
+  if (disagreements.length >= 3) {
+    arbitrationExtras.push(
+      `Pass 4 — Three-way divergence detected: all modules assessed risk differently, ` +
+      `reflecting genuine uncertainty in the threat landscape. The council applies maximum ` +
+      `caution by deferring to the strictest module assessment.`,
+    );
+  }
+
   // ── Pass 5: Confidence calibration ─────────────────────────
   // Confidence measures conviction in the VERDICT, not app quality.
   // A unanimous REJECT from all three modules is high-confidence REJECT;
@@ -446,6 +467,7 @@ export function computeAlgorithmicVerdict(
     `Pass 3 — Cross-reference: ${corroborations.length} corroborated finding(s), ` +
     `${allFindings.length} total finding(s) across ${assessments.length} modules`,
     `Pass 4 — Disagreement resolution: ${disagreements.length} disagreement(s) detected`,
+    ...arbitrationExtras,
     `Pass 5 — Confidence calibration: ${(confidence * 100).toFixed(0)}% ` +
     `(base ${avgScore.toFixed(0)}% ± adjustments)`,
     ``,

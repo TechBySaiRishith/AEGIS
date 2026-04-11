@@ -265,18 +265,33 @@ export function buildExecutiveSummary(
   const appContext = extractAppContext(appName, appDescription, framework, assessments);
   const lines: string[] = [];
 
-  // Opening paragraph — application-specific
+  // Opening paragraph — vary by verdict to avoid template feel
   const techDesc = appContext.techStack !== "unknown framework"
     ? `a ${appContext.techStack} application`
     : "a software application";
   const aiDesc = appContext.aiModels.length > 0
     ? ` integrating ${appContext.aiModels.join(", ")}`
     : "";
-  lines.push(
-    `AEGIS evaluated "${appName}", ${techDesc}${aiDesc}, ` +
-    `through three independent expert modules: Sentinel (code security), Watchdog (LLM safety), ` +
-    `and Guardian (governance compliance).`,
-  );
+
+  if (verdict === "REJECT") {
+    lines.push(
+      `AEGIS has identified critical concerns in "${appName}"${aiDesc ? `, ${techDesc}${aiDesc}` : ""}. ` +
+      `The three-module expert council — Sentinel (code security), Watchdog (LLM safety), ` +
+      `and Guardian (governance) — converged on a REJECT recommendation after independent analysis.`,
+    );
+  } else if (verdict === "REVIEW") {
+    lines.push(
+      `"${appName}"${aiDesc ? `, ${techDesc}${aiDesc},` : ""} requires further review before deployment. ` +
+      `AEGIS's expert council identified areas of concern that do not rise to automatic rejection ` +
+      `but warrant human evaluation before proceeding.`,
+    );
+  } else {
+    lines.push(
+      `AEGIS analysis of "${appName}"${aiDesc ? `, ${techDesc}${aiDesc},` : ""} found no blocking concerns ` +
+      `across security, LLM safety, and governance dimensions. The expert council recommends approval ` +
+      `with the noted observations.`,
+    );
+  }
   if (appDescription) {
     lines.push(appDescription);
   }
@@ -306,8 +321,21 @@ export function buildExecutiveSummary(
       const topFinding = a.findings.length > 0
         ? `. Top concern: "${a.findings.sort((x, y) => SEVERITY_ORDER[x.severity] - SEVERITY_ORDER[y.severity])[0].title}"`
         : "";
+
+      // Vary language by module score to avoid mechanical repetition
+      let riskPhrase: string;
+      if (a.score < 30) {
+        riskPhrase = `flagged critical deficiencies, scoring ${a.score}/100 and`;
+      } else if (a.score < 60) {
+        riskPhrase = `identified material risks, scoring ${a.score}/100 and`;
+      } else if (a.score <= 85) {
+        riskPhrase = `noted areas for improvement, scoring ${a.score}/100 and`;
+      } else {
+        riskPhrase = `found the application largely compliant, scoring ${a.score}/100 and`;
+      }
+
       lines.push(
-        `• ${label.name} (${label.focus}) scored ${a.score}/100, ${findingsSummary}${topFinding}.`,
+        `• ${label.name} (${label.focus}) ${riskPhrase} ${findingsSummary}${topFinding}.`,
       );
     }
   }
@@ -330,10 +358,24 @@ export function buildExecutiveSummary(
     );
   }
 
+  // Derive primary concern from lowest-scoring completed module
+  const completedAssessments = assessments.filter((a) => a.status === "completed");
+  const lowestModule = completedAssessments.length > 0
+    ? completedAssessments.reduce((min, a) => a.score < min.score ? a : min)
+    : null;
+  const primaryConcern = lowestModule && lowestModule.findings.length > 0
+    ? lowestModule.findings.sort((x, y) => SEVERITY_ORDER[x.severity] - SEVERITY_ORDER[y.severity])[0].category
+    : "the identified risk areas";
+
   // Overall recommendation
   lines.push("");
+  const verdictDetail = verdict === "REJECT"
+    ? `driven primarily by ${primaryConcern}`
+    : verdict === "REVIEW"
+      ? `recommending focused review of ${primaryConcern}`
+      : "acknowledging minor improvements needed";
   lines.push(
-    `Council verdict: ${verdict} (${(council.confidence * 100).toFixed(0)}% confidence).`,
+    `The council reached a ${verdict} determination with ${(council.confidence * 100).toFixed(0)}% confidence, ${verdictDetail}.`,
   );
 
   // Collapse any runs of empty strings so we never emit doubled blank lines.
