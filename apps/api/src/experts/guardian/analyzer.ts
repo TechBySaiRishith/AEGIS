@@ -210,7 +210,7 @@ function parseLLMResponse(raw: string): GuardianLLMResponse {
   return parsed;
 }
 
-function toFindings(raw: GuardianLLMResponse): Finding[] {
+export function toFindings(raw: GuardianLLMResponse): Finding[] {
   return raw.findings.map((f, idx) => {
     const evidence: Evidence[] = [];
     if (f.filePath) {
@@ -222,13 +222,21 @@ function toFindings(raw: GuardianLLMResponse): Finding[] {
       });
     }
 
+    // Drop Evidence entries whose snippet is empty or whitespace-only.
+    // Guardian sometimes synthesises Evidence from the application profile
+    // summary rather than real file content, producing empty snippets that
+    // hurt output quality.
+    const filteredEvidence = evidence.filter(
+      (e) => !!e.snippet && e.snippet.trim().length > 0,
+    );
+
     return {
       id: `guardian-${idx + 1}`,
       title: f.title,
       severity: normaliseSeverity(f.severity),
       category: f.category || "governance",
       description: f.description,
-      evidence,
+      evidence: filteredEvidence,
       remediation: f.remediation,
       framework: f.framework,
     };
