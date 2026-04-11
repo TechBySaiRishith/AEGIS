@@ -624,6 +624,8 @@ AEGIS supports multiple LLM providers simultaneously through its **LLM Registry*
 | **GitHub Models** | `GITHUB_TOKEN` | `gpt-4o` |
 | **Custom** (OpenAI-compatible) | `CUSTOM_LLM_BASE_URL` + `CUSTOM_LLM_API_KEY` | `default` |
 
+> **If `pnpm install` fails on `better-sqlite3`:** Some environments (restricted Docker images, machines without a C++ toolchain) cannot compile native modules. Fallback: run `pnpm install --ignore-scripts`, then rely on the prebuilt Docker image (`pnpm docker:up`) for local development. The production Dockerfile builds the native module inside a full toolchain layer, so `docker:up` always works.
+
 ### Copilot Provider (GitHub Copilot Enterprise)
 
 If your GitHub account has **Copilot Enterprise**, the `CopilotProvider` gives AEGIS access to premium models — including GPT-5.4 and Claude Opus 4.6 — at no additional per-token cost.
