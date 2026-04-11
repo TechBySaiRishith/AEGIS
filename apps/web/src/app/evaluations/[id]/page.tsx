@@ -731,8 +731,13 @@ function OwaspLlmBreakdown({
   return (
     <div className="mt-5 rounded-[1.25rem] border border-white/10 bg-black/18 px-4 py-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-          OWASP LLM Top-10 breakdown
+        <div>
+          <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            OWASP LLM Top-10 breakdown
+          </div>
+          <p className="mt-1 text-[0.62rem] leading-4 text-[var(--text-muted)] opacity-70">
+            How this application performs against the ten most common AI&nbsp;/&nbsp;LLM security risks
+          </p>
         </div>
         <div
           className="text-[0.68rem] uppercase tracking-[0.18em]"
@@ -873,14 +878,20 @@ function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: 
                <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Confidence</div>
                <div
                  key={confidencePercent}
-                 className="mt-2 text-4xl font-semibold animate-fade-in transition-opacity duration-300"
-                 style={{ color: style.color, fontFamily: "var(--font-mono)" }}
-               >
-                 {confidencePercent}%
-               </div>
-             </div>
-             <div className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              Audit ready
+                className="mt-2 text-4xl font-semibold animate-fade-in transition-opacity duration-300"
+                style={{ color: style.color, fontFamily: "var(--font-mono)" }}
+              >
+                {confidencePercent}%
+              </div>
+              <div className="mt-1 text-[0.72rem] font-medium" style={{ color: style.color }}>
+                {confidencePercent >= 85 ? "High confidence" : confidencePercent >= 65 ? "Moderate confidence" : confidencePercent >= 45 ? "Fair confidence" : "Low confidence"}
+              </div>
+              <p className="mt-0.5 text-[0.62rem] leading-4 text-[var(--text-muted)]">
+                Based on module agreement, evidence quality, and coverage depth
+              </p>
+              </div>
+              <div className="rounded-full border border-white/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+               Audit ready
             </div>
           </div>
           <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
@@ -1243,6 +1254,42 @@ function CompletedResults({ evaluation }: { evaluation: Evaluation }) {
   return (
     <div className="space-y-8 animate-fade-in">
       {council ? <VerdictBanner verdict={council.verdict} confidence={council.confidence} /> : null}
+
+      {council?.verdict === "REVIEW" && totalFindings > 0 ? (
+        <div className="panel rounded-[1.6rem] px-6 py-5 animate-fade-in" style={{ borderColor: "color-mix(in srgb, var(--review) 24%, transparent)", background: "linear-gradient(180deg, color-mix(in srgb, var(--review) 8%, rgba(24,24,27,0.97)), rgba(24,24,27,0.97) 60%)" }}>
+          <div className="text-[0.72rem] uppercase tracking-[0.24em] text-[var(--review)]">Prioritized actions</div>
+          <p className="mt-1 text-[0.66rem] leading-4 text-[var(--text-muted)]">Address these items before resubmission — ordered by severity and cross-module agreement</p>
+          <ol className="mt-4 space-y-2">
+            {successfulAssessments
+              .flatMap((a) => a.findings.map((f) => ({ ...f, moduleId: a.moduleId })))
+              .sort((a, b) => {
+                const sev: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                return (sev[a.severity] ?? 4) - (sev[b.severity] ?? 4);
+              })
+              .slice(0, 5)
+              .map((finding, idx) => {
+                const sevStyle = SEVERITY_STYLES[finding.severity] ?? SEVERITY_STYLES.info;
+                const primaryEvidence = finding.evidence[0];
+                return (
+                  <li key={finding.id || idx} className="flex items-start gap-3 rounded-xl border border-white/8 bg-black/16 px-4 py-3">
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[0.7rem] font-bold" style={{ color: sevStyle.color, background: sevStyle.bg }}>{idx + 1}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-[var(--text)]">{finding.title}</span>
+                        <span className="rounded-full px-2 py-0.5 text-[0.58rem] font-semibold uppercase" style={{ color: sevStyle.color, background: sevStyle.bg }}>{sevStyle.label}</span>
+                      </div>
+                      {finding.remediation ? <p className="mt-1 text-[0.7rem] leading-5 text-[var(--text-muted)]">{finding.remediation}</p> : null}
+                      <div className="mt-1 flex gap-2 text-[0.6rem] text-[var(--text-muted)]">
+                        {primaryEvidence?.filePath ? <span className="font-mono">{primaryEvidence.filePath}{primaryEvidence.lineNumber ? `:${primaryEvidence.lineNumber}` : ""}</span> : null}
+                        <span className="uppercase tracking-wider opacity-60">{EXPERT_MODULES[finding.moduleId as ExpertModuleId]?.name ?? finding.moduleId}</span>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+          </ol>
+        </div>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-4 animate-fade-in transition-opacity duration-300">
         {stats.map((metric, index) => (
