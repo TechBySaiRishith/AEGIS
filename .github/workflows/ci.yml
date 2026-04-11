@@ -35,3 +35,12 @@ jobs:
 
       - name: Run api test suite
         run: pnpm --filter @aegis/api test
+
+      - name: Run web component test suite
+        run: pnpm --filter @aegis/web test
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @aegis/web exec playwright install --with-deps chromium
+
+      - name: Run web e2e test suite
+        run: pnpm --filter @aegis/web test:e2e
