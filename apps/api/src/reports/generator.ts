@@ -358,13 +358,25 @@ export function buildExecutiveSummary(
     );
   }
 
+  // Technology-specific insight
+  if (appContext.aiModels.length > 0 || appContext.techStack !== "unknown framework") {
+    lines.push("");
+    const techInsight = appContext.aiModels.length > 0
+      ? `Given the application's use of ${appContext.aiModels.join(" and ")}, particular attention was paid to model integration boundaries and data flow integrity.`
+      : `The ${appContext.techStack} architecture was evaluated for framework-specific vulnerabilities and configuration risks.`;
+    lines.push(techInsight);
+  }
+
   // Derive primary concern from lowest-scoring completed module
   const completedAssessments = assessments.filter((a) => a.status === "completed");
   const lowestModule = completedAssessments.length > 0
     ? completedAssessments.reduce((min, a) => a.score < min.score ? a : min)
     : null;
-  const primaryConcern = lowestModule && lowestModule.findings.length > 0
-    ? lowestModule.findings.sort((x, y) => SEVERITY_ORDER[x.severity] - SEVERITY_ORDER[y.severity])[0].category
+  const topFindingObj = lowestModule && lowestModule.findings.length > 0
+    ? lowestModule.findings.sort((x, y) => SEVERITY_ORDER[x.severity] - SEVERITY_ORDER[y.severity])[0]
+    : null;
+  const primaryConcern = topFindingObj
+    ? `${topFindingObj.title} (${topFindingObj.category})`
     : "the identified risk areas";
 
   // Overall recommendation
