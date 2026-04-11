@@ -23,10 +23,14 @@ const MODULE_ID = "watchdog" as const;
 const META = EXPERT_MODULES[MODULE_ID];
 
 /** Max characters per file to avoid blowing the context window */
-const MAX_FILE_CHARS = 8_000;
+const MAX_FILE_CHARS = 15_000;
 
-/** Max total characters across all files sent to the LLM */
-const MAX_TOTAL_CHARS = 15_000;
+/**
+ * Max total characters across all files sent to the LLM. Matches the
+ * shared `readKeyFiles` default in utils.ts and fits inside the 25k
+ * final prompt cap enforced by `capPromptSize` after profile framing.
+ */
+const MAX_TOTAL_CHARS = 50_000;
 
 /** File extensions we care about */
 const CODE_EXTENSIONS = new Set([
