@@ -173,9 +173,7 @@ export async function getHealth(): Promise<HealthResponse> {
 export function getEvaluationReportHtmlUrl(id: string, options?: { autoPrint?: boolean }): string {
   const path = `${API_BASE}/api/evaluations/${id}/report/html`;
   if (options?.autoPrint) {
-    const url = new URL(path, window.location.origin);
-    url.searchParams.set("print", "1");
-    return url.toString();
+    return `${path}?print=1`;
   }
   return path;
 }

@@ -59,11 +59,15 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [inputType, setInputType] = useState<InputType>("github_url");
   const [source, setSource] = useState("");
+  const [applicationName, setApplicationName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hasProvider, setHasProvider] = useState<boolean | null>(null);
+  const sourceFieldId = "evaluation-source";
+  const applicationNameFieldId = "evaluation-name";
+  const descriptionFieldId = "evaluation-description";
 
   const currentInput = INPUT_TYPES.find((type) => type.value === inputType) ?? INPUT_TYPES[0];
 
@@ -153,6 +157,7 @@ export default function Home() {
       const response = await submitEvaluation({
         inputType,
         source: trimmedSource,
+        name: applicationName.trim() || undefined,
         description: description.trim() || undefined,
       });
       router.push(`/evaluations/${response.evaluationId}`);
@@ -271,7 +276,10 @@ export default function Home() {
 
                 <div className="space-y-5">
                   <div>
-                    <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                    <label
+                      htmlFor={sourceFieldId}
+                      className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]"
+                    >
                       {inputType === "conversation_json" ? "Conversation payload" : "Source locator"}
                     </label>
                     {inputType === "conversation_json" ? (
@@ -311,6 +319,7 @@ export default function Home() {
                           </span>
                         </div>
                         <textarea
+                          id={sourceFieldId}
                           value={source}
                           onChange={(event) => {
                             setSource(event.target.value);
@@ -327,6 +336,7 @@ export default function Home() {
                       </div>
                     ) : (
                       <input
+                        id={sourceFieldId}
                         type="text"
                         value={source}
                         onChange={(event) => {
@@ -352,11 +362,36 @@ export default function Home() {
                    </div>
 
                   <div>
-                    <label className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                    <label
+                      htmlFor={applicationNameFieldId}
+                      className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]"
+                    >
+                      Application name
+                      <span className="ml-2 tracking-normal lowercase text-[var(--text-muted)]/75">optional</span>
+                    </label>
+                    <input
+                      id={applicationNameFieldId}
+                      type="text"
+                      value={applicationName}
+                      onChange={(event) => setApplicationName(event.target.value)}
+                      placeholder="VeriMedia"
+                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-[var(--text)] transition duration-200 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/60"
+                    />
+                    <p className="mt-2 text-xs leading-6 text-[var(--text-muted)]">
+                      e.g., VeriMedia, ChatBot-v2
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor={descriptionFieldId}
+                      className="mb-3 block text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]"
+                    >
                       Mission note
                       <span className="ml-2 tracking-normal lowercase text-[var(--text-muted)]/75">optional</span>
                     </label>
                     <textarea
+                      id={descriptionFieldId}
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                       placeholder="Describe the deployment context, threat posture, or research objective."
@@ -395,6 +430,20 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="panel rounded-[1.75rem] px-6 py-6 sm:px-8">
+        <div className="max-w-4xl space-y-3">
+          <div className="section-kicker">What is AEGIS?</div>
+          <p className="text-sm leading-8 text-[var(--text-muted)] sm:text-base">
+            AEGIS evaluates AI-powered applications for safety, security, and governance
+            compliance. Submit any AI agent — by GitHub URL, conversation log, or API endpoint —
+            and receive an independent assessment from three specialist modules, each grounded in
+            industry-standard frameworks (CWE/OWASP, OWASP LLM Top 10, NIST AI RMF). The Council of
+            Experts synthesizes their findings into a clear APPROVE, REVIEW, or REJECT verdict with
+            actionable recommendations.
+          </p>
+        </div>
+      </section>
+
       <section className="space-y-8">
         <div className="max-w-3xl space-y-3">
           <div className="section-kicker">How it works</div>
@@ -419,6 +468,33 @@ export default function Home() {
               <p className="text-sm leading-7 text-[var(--text-muted)]">{step.desc}</p>
             </div>
           ))}
+        </div>
+
+        <div className="panel rounded-[1.6rem] px-6 py-6">
+          <div className="section-kicker">Understanding your verdict</div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-[1.3rem] border border-[var(--approve)]/18 bg-[var(--approve-bg)] px-4 py-4">
+              <div className="text-sm font-semibold text-[var(--approve)]">APPROVE</div>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                Approve means the system is ready for deployment or pilot use with routine monitoring
+                and standard control checks.
+              </p>
+            </div>
+            <div className="rounded-[1.3rem] border border-[var(--review)]/18 bg-[var(--review-bg)] px-4 py-4">
+              <div className="text-sm font-semibold text-[var(--review)]">REVIEW</div>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                Review means material issues or evidence gaps were found. Address the listed actions
+                and resubmit before launch.
+              </p>
+            </div>
+            <div className="rounded-[1.3rem] border border-[var(--reject)]/18 bg-[var(--reject-bg)] px-4 py-4">
+              <div className="text-sm font-semibold text-[var(--reject)]">REJECT</div>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                Reject means critical safety, security, or governance issues make the system unready
+                for deployment. Remediate before any production use.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

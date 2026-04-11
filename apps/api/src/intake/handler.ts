@@ -51,6 +51,7 @@ async function handleGitHub(
 
   // Derive a better name from the GitHub URL if possible
   const urlName = extractRepoName(request.source);
+  const requestedName = request.name?.trim();
 
   return {
     id: evaluationId,
@@ -60,6 +61,7 @@ async function handleGitHub(
     ...analysis,
     // Use GitHub repo name if the analyzer only returned a UUID-based dir name
     ...(urlName && analysis.name !== urlName ? { name: urlName } : {}),
+    ...(requestedName ? { name: requestedName } : {}),
     // Override description if caller provided one
     ...(request.description ? { description: request.description } : {}),
   };
@@ -127,7 +129,7 @@ async function handleConversationJSON(
     id,
     inputType: "conversation_json",
     sourceUrl: sourceName,
-    name: sourceName,
+    name: request.name?.trim() || sourceName,
     description: request.description ?? `Conversation log (${messages.length} messages, model: ${model})`,
     framework: "conversation",
     language: "natural_language",
@@ -278,7 +280,7 @@ async function handleAPIEndpoint(
     id,
     inputType: "api_endpoint",
     sourceUrl: request.source,
-    name: request.source.length > 60 ? hostname : request.source,
+    name: request.name?.trim() || (request.source.length > 60 ? hostname : request.source),
     description: request.description ?? buildEndpointDescription(hostname, probe),
     framework: probe.framework ?? "api",
     language: probe.language ?? "unknown",
@@ -447,7 +449,7 @@ async function handleText(
   return {
     id,
     inputType: "text",
-    name: request.description ?? `Text analysis (${language})`,
+    name: request.name?.trim() || (request.description ?? `Text analysis (${language})`),
     description:
       request.description ??
       `Pasted ${language} code — ${lineCount} lines, ${dependencies.length} dependencies detected.`,

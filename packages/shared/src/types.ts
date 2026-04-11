@@ -281,6 +281,7 @@ export interface SSEEvent {
 export interface EvaluateRequest {
   inputType: InputType;
   source: string; // URL, file path, or endpoint
+  name?: string;
   description?: string;
   /** URL pointing to a conversation JSON file (alternative to inline source for conversation_json) */
   sourceUrl?: string;

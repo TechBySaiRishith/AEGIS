@@ -19,6 +19,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 import { getHealth } from "@/lib/api";
+import { submitEvaluation } from "@/lib/api";
 
 type MockHealth = {
   status: string;
@@ -102,5 +103,59 @@ describe("Home onboarding banner", () => {
         /API endpoint mode checks your live endpoint for security headers, CORS settings, and OpenAPI\/Swagger specs\. For full source code analysis, use GitHub URL instead\./i,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows first-time visitor guidance and verdict definitions", async () => {
+    vi.mocked(getHealth).mockResolvedValue(makeHealth(["copilot"]));
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(getHealth).toHaveBeenCalled();
+    });
+
+    expect(
+      screen.getByText(/AEGIS evaluates AI-powered applications for safety, security, and governance compliance\./i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Understanding your verdict/i)).toBeInTheDocument();
+    expect(screen.getByText(/Approve means the system is ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/Review means material issues or evidence gaps/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reject means critical safety, security, or governance issues/i)).toBeInTheDocument();
+  });
+
+  it("submits an optional application name with the evaluation request", async () => {
+    vi.mocked(getHealth).mockResolvedValue(makeHealth(["copilot"]));
+    vi.mocked(submitEvaluation).mockResolvedValue({
+      evaluationId: "eval-123",
+      status: "pending",
+    });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(getHealth).toHaveBeenCalled();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Source locator/i), {
+      target: { value: "https://github.com/example/repo" },
+    });
+    fireEvent.change(screen.getByLabelText(/Application name/i), {
+      target: { value: "VeriMedia" },
+    });
+    fireEvent.change(screen.getByLabelText(/Mission note/i), {
+      target: { value: "Leadership review" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Launch Council review/i }));
+
+    await waitFor(() => {
+      expect(submitEvaluation).toHaveBeenCalledWith({
+        inputType: "github_url",
+        source: "https://github.com/example/repo",
+        name: "VeriMedia",
+        description: "Leadership review",
+      });
+    });
+
+    expect(push).toHaveBeenCalledWith("/evaluations/eval-123");
   });
 });
