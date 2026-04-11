@@ -301,24 +301,165 @@ async function handleAPIEndpoint(
 
 // ─── Text Handler ────────────────────────────────────────────
 
+/** Keyword → language mapping for detection from text content */
+const LANG_SIGNALS: Array<{ lang: string; patterns: RegExp[] }> = [
+  {
+    lang: "python",
+    patterns: [
+      /\bimport\s+(?:flask|django|fastapi|openai|subprocess|os|sys|requests|pandas|numpy|torch)\b/,
+      /\bfrom\s+\w+\s+import\b/,
+      /\bdef\s+\w+\s*\(.*\)\s*(?:->.*)?:/,
+      /\bclass\s+\w+.*:/,
+      /\bif\s+__name__\s*==\s*['"]__main__['"]/,
+    ],
+  },
+  {
+    lang: "typescript",
+    patterns: [
+      /\bimport\s+.*\s+from\s+['"].*['"]/,
+      /:\s*(?:string|number|boolean|void|Promise)\b/,
+      /\binterface\s+\w+/,
+      /\bconst\s+\w+:\s*\w+/,
+    ],
+  },
+  {
+    lang: "javascript",
+    patterns: [
+      /\bconst\s+\w+\s*=\s*require\s*\(/,
+      /\bmodule\.exports\b/,
+      /\bapp\.\s*(?:get|post|put|delete|use)\s*\(/,
+      /=>\s*\{/,
+    ],
+  },
+];
+
+/** Dependency / framework signals to extract from text */
+const DEPENDENCY_SIGNALS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "flask", pattern: /\bflask\b/i },
+  { name: "django", pattern: /\bdjango\b/i },
+  { name: "fastapi", pattern: /\bfastapi\b/i },
+  { name: "express", pattern: /\bexpress\b/i },
+  { name: "openai", pattern: /\bopenai\b/i },
+  { name: "langchain", pattern: /\blangchain\b/i },
+  { name: "anthropic", pattern: /\banthropic\b/i },
+  { name: "transformers", pattern: /\btransformers\b/i },
+  { name: "huggingface", pattern: /\bhugging\s*face\b/i },
+  { name: "torch", pattern: /\btorch\b/ },
+  { name: "tensorflow", pattern: /\btensorflow\b/i },
+  { name: "react", pattern: /\breact\b/i },
+  { name: "next.js", pattern: /\bnext\b/i },
+  { name: "subprocess", pattern: /\bsubprocess\b/ },
+  { name: "gunicorn", pattern: /\bgunicorn\b/i },
+];
+
+/** AI integration signals */
+const AI_SIGNALS: Array<{ type: string; description: string; pattern: RegExp }> = [
+  { type: "openai", description: "OpenAI API usage", pattern: /\bopenai\b/i },
+  { type: "anthropic", description: "Anthropic Claude API usage", pattern: /\banthropic\b/i },
+  { type: "langchain", description: "LangChain framework", pattern: /\blangchain\b/i },
+  { type: "huggingface", description: "Hugging Face models", pattern: /\b(?:hugging\s*face|transformers)\b/i },
+  { type: "whisper", description: "OpenAI Whisper model", pattern: /\bwhisper\b/i },
+  { type: "torch", description: "PyTorch ML framework", pattern: /\btorch\b/ },
+  { type: "tensorflow", description: "TensorFlow framework", pattern: /\btensorflow\b/i },
+];
+
+/** Framework signals for the `framework` field */
+const FRAMEWORK_SIGNALS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "flask", pattern: /\bflask\b/i },
+  { name: "django", pattern: /\bdjango\b/i },
+  { name: "fastapi", pattern: /\bfastapi\b/i },
+  { name: "express", pattern: /\bexpress\b/i },
+  { name: "hono", pattern: /\bhono\b/i },
+  { name: "next.js", pattern: /\bnext\b/i },
+];
+
 async function handleText(
   request: EvaluateRequest,
 ): Promise<ApplicationProfile> {
   const id = nanoid();
+  const text = request.source;
+  const lines = text.split("\n");
+  const lineCount = lines.length;
+
+  // Detect language
+  let language = "unknown";
+  let bestScore = 0;
+  for (const { lang, patterns } of LANG_SIGNALS) {
+    const score = patterns.filter(p => p.test(text)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      language = lang;
+    }
+  }
+
+  // Detect framework
+  let framework = "unknown";
+  for (const sig of FRAMEWORK_SIGNALS) {
+    if (sig.pattern.test(text)) {
+      framework = sig.name;
+      break;
+    }
+  }
+
+  // Extract dependencies
+  const dependencies: string[] = [];
+  for (const sig of DEPENDENCY_SIGNALS) {
+    if (sig.pattern.test(text) && !dependencies.includes(sig.name)) {
+      dependencies.push(sig.name);
+    }
+  }
+
+  // Detect AI integrations
+  const aiIntegrations = AI_SIGNALS
+    .filter(sig => sig.pattern.test(text))
+    .map(sig => ({
+      type: sig.type,
+      description: sig.description,
+      files: ["text-input"],
+    }));
+
+  // Build a virtual file name based on detected language
+  const extMap: Record<string, string> = {
+    python: "py",
+    typescript: "ts",
+    javascript: "js",
+  };
+  const ext = extMap[language] ?? "txt";
+  const virtualFile = `input.${ext}`;
+
+  // Build file structure from the text content
+  const fileStructure = [
+    { path: virtualFile, type: "file" as const, language, lines: lineCount },
+  ];
+
+  // Entry points: look for main-like patterns
+  const entryPoints: string[] = [];
+  if (/if\s+__name__\s*==\s*['"]__main__['"]/.test(text)) entryPoints.push(virtualFile);
+  if (/app\.run\s*\(/.test(text)) entryPoints.push(virtualFile);
+  if (/\.listen\s*\(/.test(text)) entryPoints.push(virtualFile);
+  if (entryPoints.length === 0) entryPoints.push(virtualFile);
+
+  // Provide the text as a code excerpt so experts can read it
+  const codeExcerpts: Record<string, string> = {
+    [virtualFile]: text.slice(0, 16_000),
+  };
 
   return {
     id,
     inputType: "text",
-    name: request.source,
-    description: request.description ?? request.source,
-    framework: "unknown",
-    language: "unknown",
-    entryPoints: [],
-    dependencies: [],
-    aiIntegrations: [],
-    fileStructure: [],
-    totalFiles: 0,
-    totalLines: 0,
+    name: request.description ?? `Text analysis (${language})`,
+    description:
+      request.description ??
+      `Pasted ${language} code — ${lineCount} lines, ${dependencies.length} dependencies detected.`,
+    framework,
+    language,
+    entryPoints,
+    dependencies,
+    aiIntegrations,
+    fileStructure,
+    totalFiles: 1,
+    totalLines: lineCount,
+    codeExcerpts,
   };
 }
 
