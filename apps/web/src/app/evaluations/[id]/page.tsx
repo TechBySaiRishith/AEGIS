@@ -4,10 +4,14 @@ import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from
 import { useParams, useRouter } from "next/navigation";
 import {
   EXPERT_MODULES,
+  OWASP_LLM_CATEGORIES,
+  OWASP_LLM_CATEGORY_IDS,
   SEVERITY_STYLES,
   STATUS_LABELS,
   VERDICT_STYLES,
+  extractOwaspLlmId,
 } from "@aegis/shared";
+import type { OwaspLlmCategoryId } from "@aegis/shared";
 import type {
   Evaluation,
   EvaluationStatus,
@@ -642,6 +646,10 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
               />
             </div>
           ) : null}
+
+          {moduleId === "watchdog" ? (
+            <OwaspLlmBreakdown findings={assessment.findings} accent={accent} />
+          ) : null}
         </>
       )}
 
@@ -664,6 +672,154 @@ function ModuleCard({ moduleId, assessment }: { moduleId: ExpertModuleId; assess
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+type OwaspLlmBucket = {
+  id: OwaspLlmCategoryId;
+  name: string;
+  total: number;
+  worst: Severity | null;
+};
+
+const SEVERITY_WEIGHT: Record<Severity, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+  info: 0,
+};
+
+function buildOwaspLlmBuckets(findings: Finding[]): OwaspLlmBucket[] {
+  const buckets = new Map<OwaspLlmCategoryId, OwaspLlmBucket>();
+  for (const id of OWASP_LLM_CATEGORY_IDS) {
+    buckets.set(id, {
+      id,
+      name: OWASP_LLM_CATEGORIES[id],
+      total: 0,
+      worst: null,
+    });
+  }
+  for (const finding of findings) {
+    const id = extractOwaspLlmId(finding.framework);
+    if (!id) continue;
+    const bucket = buckets.get(id);
+    if (!bucket) continue;
+    bucket.total += 1;
+    if (
+      bucket.worst === null ||
+      SEVERITY_WEIGHT[finding.severity] > SEVERITY_WEIGHT[bucket.worst]
+    ) {
+      bucket.worst = finding.severity;
+    }
+  }
+  return OWASP_LLM_CATEGORY_IDS.map((id) => buckets.get(id)!);
+}
+
+function OwaspLlmBreakdown({
+  findings,
+  accent,
+}: {
+  findings: Finding[];
+  accent: string;
+}) {
+  const buckets = useMemo(() => buildOwaspLlmBuckets(findings), [findings]);
+  const activeCount = buckets.filter((b) => b.total > 0).length;
+  const coveragePct = Math.round((activeCount / buckets.length) * 100);
+
+  return (
+    <div className="mt-5 rounded-[1.25rem] border border-white/10 bg-black/18 px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+          OWASP LLM Top-10 breakdown
+        </div>
+        <div
+          className="text-[0.68rem] uppercase tracking-[0.18em]"
+          style={{ color: accent }}
+        >
+          {activeCount}/10 categories flagged · {coveragePct}% surface
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {buckets.map((bucket) => {
+          const active = bucket.total > 0;
+          const severityStyle = bucket.worst
+            ? SEVERITY_STYLES[bucket.worst]
+            : null;
+          return (
+            <div
+              key={bucket.id}
+              className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs transition-colors"
+              style={{
+                borderColor: active
+                  ? `color-mix(in srgb, ${
+                      severityStyle?.color ?? accent
+                    } 45%, rgba(255,255,255,0.08))`
+                  : "rgba(255,255,255,0.06)",
+                background: active
+                  ? `color-mix(in srgb, ${
+                      severityStyle?.color ?? accent
+                    } 10%, rgba(0,0,0,0.18))`
+                  : "rgba(0,0,0,0.14)",
+              }}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className="inline-flex h-6 min-w-[2.6rem] items-center justify-center rounded-md border px-1 font-mono text-[0.65rem] tracking-wider"
+                  style={{
+                    borderColor: active
+                      ? `color-mix(in srgb, ${
+                          severityStyle?.color ?? accent
+                        } 60%, transparent)`
+                      : "rgba(255,255,255,0.12)",
+                    color: active
+                      ? severityStyle?.color ?? accent
+                      : "var(--text-muted)",
+                  }}
+                >
+                  {bucket.id}
+                </span>
+                <span
+                  className={`truncate ${
+                    active ? "text-[var(--text)]" : "text-[var(--text-muted)]"
+                  }`}
+                >
+                  {bucket.name}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {active && severityStyle ? (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide"
+                    style={{
+                      color: severityStyle.color,
+                      background: severityStyle.bg,
+                    }}
+                  >
+                    {severityStyle.label}
+                  </span>
+                ) : null}
+                <span
+                  className="font-mono text-[0.7rem]"
+                  style={{
+                    color: active ? "var(--text)" : "var(--text-muted)",
+                  }}
+                >
+                  {bucket.total}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-[0.68rem] leading-5 text-[var(--text-muted)]">
+        Counts aggregate Watchdog findings tagged with <code>OWASP-LLM0N</code>{" "}
+        framework IDs. Categories with zero findings are displayed dimmed to
+        surface coverage, not just hits.
+      </p>
     </div>
   );
 }

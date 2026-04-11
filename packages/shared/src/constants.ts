@@ -66,3 +66,44 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const APP_VERSION = "0.1.0";
+
+// ─── OWASP LLM Top 10 (2025) ───────────────────────────────
+// Canonical category IDs used by Watchdog when tagging findings via
+// `framework: "OWASP-LLM0N"`. Shared here so the web UI can render
+// per-category breakdowns without depending on the API source tree.
+
+export const OWASP_LLM_CATEGORIES = {
+  LLM01: "Prompt Injection",
+  LLM02: "Insecure Output Handling",
+  LLM03: "Training Data Poisoning",
+  LLM04: "Model Denial of Service",
+  LLM05: "Supply Chain Vulnerabilities",
+  LLM06: "Sensitive Information Disclosure",
+  LLM07: "Insecure Plugin Design",
+  LLM08: "Excessive Agency",
+  LLM09: "Overreliance",
+  LLM10: "Model Theft",
+} as const;
+
+export type OwaspLlmCategoryId = keyof typeof OWASP_LLM_CATEGORIES;
+
+/** Ordered list of OWASP LLM Top-10 category IDs (LLM01…LLM10). */
+export const OWASP_LLM_CATEGORY_IDS = Object.keys(
+  OWASP_LLM_CATEGORIES,
+) as OwaspLlmCategoryId[];
+
+/**
+ * Extract the OWASP LLM category code (e.g. "LLM01") from a finding's
+ * `framework` field. Watchdog tags findings as `"OWASP-LLM01"`, but we
+ * match any `LLM\d{2}` token to be resilient to prefix drift. Returns
+ * `null` when the finding is not LLM-tagged.
+ */
+export function extractOwaspLlmId(
+  framework: string | undefined,
+): OwaspLlmCategoryId | null {
+  if (!framework) return null;
+  const match = framework.match(/LLM(\d{2})/);
+  if (!match) return null;
+  const id = `LLM${match[1]}` as OwaspLlmCategoryId;
+  return id in OWASP_LLM_CATEGORIES ? id : null;
+}

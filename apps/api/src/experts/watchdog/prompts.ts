@@ -1,19 +1,11 @@
 import type { ApplicationProfile } from "@aegis/shared";
+import { OWASP_LLM_CATEGORIES } from "@aegis/shared";
 
 // ─── OWASP LLM Top 10 Reference IDs ───────────────────────
+// Canonical source lives in @aegis/shared so the web UI can render the
+// same category labels without pulling in API internals.
 
-export const OWASP_LLM_IDS = {
-  LLM01: "Prompt Injection",
-  LLM02: "Insecure Output Handling",
-  LLM03: "Training Data Poisoning",
-  LLM04: "Model Denial of Service",
-  LLM05: "Supply Chain Vulnerabilities",
-  LLM06: "Sensitive Information Disclosure",
-  LLM07: "Insecure Plugin Design",
-  LLM08: "Excessive Agency",
-  LLM09: "Overreliance",
-  LLM10: "Model Theft",
-} as const;
+export const OWASP_LLM_IDS = OWASP_LLM_CATEGORIES;
 
 // ─── System Prompt ─────────────────────────────────────────
 
