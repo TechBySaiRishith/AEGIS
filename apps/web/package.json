@@ -6,19 +6,27 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@aegis/shared": "workspace:*",
     "next": "^15.3.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "@aegis/shared": "workspace:*"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
-    "typescript": "^5.7.0",
+    "jsdom": "^29.0.2",
     "tailwindcss": "^4.1.0",
-    "@tailwindcss/postcss": "^4.1.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
   }
 }

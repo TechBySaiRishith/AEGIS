@@ -36,3 +36,8 @@ pnpm-debug.log*
 apps/api/.data/
 data/
 .data/
+
+# Playwright e2e artifacts
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/playwright/.cache/
