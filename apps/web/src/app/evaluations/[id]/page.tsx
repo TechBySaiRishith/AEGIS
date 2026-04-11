@@ -759,6 +759,56 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
   const progress = Math.round(((effectiveStep + 1) / PIPELINE_STEPS.length) * 100);
   const recentEvents = events.slice(-8).reverse();
 
+  // Per-module state derived from SSE events. The experts run in parallel,
+  // so more than one can be active at once — the singleton `evaluation.status`
+  // field is not enough to light up the timeline correctly.
+  const moduleStarted = new Set<ExpertModuleId>();
+  const moduleFinished = new Map<ExpertModuleId, "completed" | "failed">();
+  for (const e of events) {
+    if (e.type === "status") {
+      const status = (e.data as { status?: string }).status;
+      if (status === "sentinel_running") moduleStarted.add("sentinel");
+      else if (status === "watchdog_running") moduleStarted.add("watchdog");
+      else if (status === "guardian_running") moduleStarted.add("guardian");
+    } else if (e.type === "progress") {
+      const d = e.data as { module?: string; status?: string };
+      if (d.module === "sentinel" || d.module === "watchdog" || d.module === "guardian") {
+        moduleFinished.set(
+          d.module,
+          d.status === "failed" ? "failed" : "completed",
+        );
+      }
+    }
+  }
+  // Fallback: if assessments already exist in the evaluation object (e.g. on a
+  // cold page load after modules finished but before the completion event was
+  // replayed), mark them finished from that source too.
+  for (const mod of ["sentinel", "watchdog", "guardian"] as ExpertModuleId[]) {
+    const a = evaluation.assessments?.[mod];
+    if (a && !moduleFinished.has(mod)) {
+      moduleFinished.set(mod, a.status === "failed" ? "failed" : "completed");
+    }
+  }
+
+  const getStepState = (
+    step: (typeof PIPELINE_STEPS)[number],
+    index: number,
+  ): { active: boolean; completed: boolean; failed: boolean } => {
+    if (step.moduleId) {
+      const finished = moduleFinished.get(step.moduleId);
+      if (finished === "completed") return { active: false, completed: true, failed: false };
+      if (finished === "failed") return { active: false, completed: true, failed: true };
+      const started = moduleStarted.has(step.moduleId) || currentStepIndex >= index;
+      return { active: started, completed: false, failed: false };
+    }
+    // Non-module steps use the linear pipeline cursor
+    return {
+      active: index === currentStepIndex,
+      completed: index < currentStepIndex,
+      failed: false,
+    };
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <section className="panel rounded-[2rem] p-7 sm:p-8">
@@ -810,37 +860,46 @@ function LiveProgress({ evaluation, events }: { evaluation: Evaluation; events: 
           <div className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-muted)]">Timeline</div>
           <div className="mt-6 space-y-4">
             {PIPELINE_STEPS.map((step, index) => {
-              const completed = index < currentStepIndex;
-              const active = index === currentStepIndex;
+              const { active, completed, failed } = getStepState(step, index);
               const accent = step.moduleId ? MODULE_ACCENTS[step.moduleId] : "var(--accent)";
+
+              const containerClass = failed
+                ? "border-[var(--reject)]/24 bg-[var(--reject)]/8"
+                : completed
+                  ? "border-[var(--approve)]/16 bg-[var(--approve-bg)]"
+                  : active
+                    ? "border-[var(--accent)]/24 bg-[var(--accent)]/10"
+                    : "border-white/8 bg-black/12";
+
+              const badgeClass = failed
+                ? "border-[var(--reject)]/30 bg-[var(--reject)]/10 text-[var(--reject)]"
+                : completed
+                  ? "border-[var(--approve)]/20 bg-[var(--approve-bg)] text-[var(--approve)]"
+                  : active
+                    ? "border-[var(--accent)]/20 bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "border-white/10 bg-white/[0.03] text-[var(--text-muted)]";
+
+              const badgeContent = failed ? "!" : completed ? "✓" : `${index + 1}`;
 
               return (
                 <div
                   key={step.key}
-                  className={`rounded-[1.3rem] border px-4 py-4 transition duration-200 ${
-                    completed
-                      ? "border-[var(--approve)]/16 bg-[var(--approve-bg)]"
-                      : active
-                        ? "border-[var(--accent)]/24 bg-[var(--accent)]/10"
-                        : "border-white/8 bg-black/12"
-                  }`}
+                  className={`rounded-[1.3rem] border px-4 py-4 transition duration-200 ${containerClass}`}
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className={`mt-1 grid h-9 w-9 place-items-center rounded-full border text-xs font-semibold uppercase tracking-[0.18em] ${
-                        completed
-                          ? "border-[var(--approve)]/20 bg-[var(--approve-bg)] text-[var(--approve)]"
-                          : active
-                            ? "border-[var(--accent)]/20 bg-[var(--accent)]/10 text-[var(--accent)]"
-                            : "border-white/10 bg-white/[0.03] text-[var(--text-muted)]"
-                      }`}
+                      className={`mt-1 grid h-9 w-9 place-items-center rounded-full border text-xs font-semibold uppercase tracking-[0.18em] ${badgeClass}`}
                     >
-                      {completed ? "✓" : `${index + 1}`}
+                      {badgeContent}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold text-[var(--text)]">{step.label}</div>
-                        {active ? (
+                        {failed ? (
+                          <span className="inline-flex items-center gap-2 rounded-full border border-[var(--reject)]/24 bg-[var(--reject)]/10 px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.18em] text-[var(--reject)]">
+                            Failed
+                          </span>
+                        ) : active ? (
                           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/18 bg-[var(--accent)]/10 px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.18em] text-[var(--accent)]">
                             <span className="h-2 w-2 animate-pulse-glow rounded-full bg-current" />
                             Active
