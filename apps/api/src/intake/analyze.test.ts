@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import {
+  analyzeApplication,
   detectFrameworkFromPackageJson,
   detectFrameworkFromRequirementsTxt,
   parseRequirementsTxt,
@@ -9,7 +13,8 @@ import {
 
 // These tests exercise pure helpers carved out of analyze.ts so we can drive
 // them with in-memory fixtures (no filesystem). The async top-level
-// `analyzeApplication` still uses fs — that's covered by integration tests.
+// `analyzeApplication` is exercised by the real-pipeline block at the bottom
+// of this file, which writes a synthetic repo into a temp directory.
 
 describe("detectFrameworkFromRequirementsTxt", () => {
   it("detects Flask from a classic requirements.txt", () => {
@@ -158,5 +163,130 @@ describe("aggregateFileCounts", () => {
 
   it("returns zeros for an empty repo", () => {
     expect(aggregateFileCounts([])).toEqual({ totalFiles: 0, totalLines: 0 });
+  });
+});
+
+// ─── analyzeApplication (real filesystem) ────────────────────
+
+describe("analyzeApplication (real filesystem)", () => {
+  let repoDir: string;
+
+  beforeEach(async () => {
+    repoDir = await mkdtemp(path.join(tmpdir(), "aegis-intake-"));
+  });
+
+  afterEach(async () => {
+    await rm(repoDir, { recursive: true, force: true });
+  });
+
+  async function writeFileAt(rel: string, content: string): Promise<void> {
+    const full = path.join(repoDir, rel);
+    await mkdir(path.dirname(full), { recursive: true });
+    await writeFile(full, content, "utf-8");
+  }
+
+  it("profiles a synthetic Flask+OpenAI repo end-to-end", async () => {
+    await writeFileAt(
+      "requirements.txt",
+      ["Flask==2.3.2", "openai==1.14.0", "requests>=2.31"].join("\n"),
+    );
+    await writeFileAt(
+      "app.py",
+      [
+        "from flask import Flask, request",
+        "from openai import OpenAI",
+        "",
+        "app = Flask(__name__)",
+        "client = OpenAI()",
+        "",
+        "@app.route('/chat', methods=['POST'])",
+        "def chat():",
+        "    prompt = request.json['prompt']",
+        "    resp = client.chat.completions.create(",
+        "        model='gpt-4o',",
+        "        messages=[{'role': 'user', 'content': prompt}],",
+        "    )",
+        "    return resp.choices[0].message.content",
+      ].join("\n"),
+    );
+    await writeFileAt("README.md", "# SyntheticApp\n\nTest fixture.");
+
+    const profile = await analyzeApplication(repoDir);
+
+    expect(profile.framework).toBe("Flask");
+    expect(profile.language.toLowerCase()).toContain("python");
+    expect(profile.dependencies).toEqual(
+      expect.arrayContaining(["flask", "openai", "requests"]),
+    );
+    expect(profile.totalFiles).toBeGreaterThanOrEqual(2);
+    expect(profile.totalLines).toBeGreaterThan(5);
+
+    // AI integration detected by dependency + source scan
+    expect(profile.aiIntegrations.length).toBeGreaterThanOrEqual(1);
+    expect(profile.aiIntegrations.some((ai) => /openai/i.test(ai.type))).toBe(
+      true,
+    );
+
+    // File structure surfaces app.py
+    expect(
+      profile.fileStructure.some(
+        (f) => f.type === "file" && f.path.endsWith("app.py"),
+      ),
+    ).toBe(true);
+  });
+
+  it("profiles a synthetic Next.js+Anthropic repo end-to-end", async () => {
+    await writeFileAt(
+      "package.json",
+      JSON.stringify(
+        {
+          name: "synthetic-next",
+          version: "0.0.1",
+          dependencies: {
+            next: "15.0.0",
+            react: "19.0.0",
+            "@anthropic-ai/sdk": "0.39.0",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFileAt(
+      "app/api/chat/route.ts",
+      [
+        "import Anthropic from '@anthropic-ai/sdk';",
+        "const client = new Anthropic();",
+        "export async function POST(req: Request) {",
+        "  const { prompt } = await req.json();",
+        "  const msg = await client.messages.create({",
+        "    model: 'claude-sonnet-4-5',",
+        "    max_tokens: 1024,",
+        "    messages: [{ role: 'user', content: prompt }],",
+        "  });",
+        "  return Response.json(msg);",
+        "}",
+      ].join("\n"),
+    );
+    await writeFileAt("README.md", "# SyntheticNext");
+
+    const profile = await analyzeApplication(repoDir);
+
+    expect(profile.framework).toBe("Next.js");
+    expect(profile.language.toLowerCase()).toMatch(/type ?script|javascript/);
+    expect(profile.dependencies).toEqual(
+      expect.arrayContaining(["next", "react", "@anthropic-ai/sdk"]),
+    );
+    expect(
+      profile.aiIntegrations.some((ai) => /anthropic/i.test(ai.type)),
+    ).toBe(true);
+  });
+
+  it("returns a zero-ish profile for a completely empty repo", async () => {
+    const profile = await analyzeApplication(repoDir);
+    expect(profile.totalFiles).toBe(0);
+    expect(profile.dependencies).toEqual([]);
+    expect(profile.aiIntegrations).toEqual([]);
+    expect(profile.fileStructure).toEqual([]);
   });
 });
