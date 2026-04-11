@@ -16,7 +16,7 @@ function stubApp(
 ): ApplicationProfile {
   return {
     id: "test-app",
-    inputType: "github",
+    inputType: "github_url",
     name: "Test App",
     description: "A test application",
     framework: "express",
