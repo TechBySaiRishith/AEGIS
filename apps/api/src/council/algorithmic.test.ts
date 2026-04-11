@@ -371,6 +371,109 @@ describe("computeAlgorithmicVerdict", () => {
     });
   });
 
+  describe("Coverage floor (insufficient independent corroboration)", () => {
+    // Real-world scenario: 2 of 3 experts crashed (e.g., provider timeout),
+    // leaving a single module with a clean score. A single module has no
+    // independent corroboration, so the council must NOT issue APPROVE even
+    // if that one module is happy — it downgrades to REVIEW and caps the
+    // conviction at the coverage-floor ceiling (0.5).
+
+    it("downgrades APPROVE → REVIEW when only 1 of 3 modules completes", () => {
+      const result = computeAlgorithmicVerdict([
+        makeAssessment({
+          moduleId: "sentinel",
+          score: 88,
+          riskLevel: "low",
+          findings: [],
+        }),
+        makeAssessment({
+          moduleId: "watchdog",
+          status: "failed",
+          score: 0,
+          error: "provider timed out",
+        }),
+        makeAssessment({
+          moduleId: "guardian",
+          status: "failed",
+          score: 0,
+          error: "provider timed out",
+        }),
+      ]);
+      expect(result.verdict).toBe("REVIEW");
+      expect(result.confidence).toBeLessThanOrEqual(0.5);
+      expect(
+        result.deliberation.confidenceFactors.some((f) =>
+          /insufficient coverage/i.test(f),
+        ),
+      ).toBe(true);
+    });
+
+    it("does NOT downgrade REJECT → REVIEW when only 1 module completes", () => {
+      // A single module finding a critical issue is enough for REJECT — we
+      // defer to the stricter assessment. The coverage floor only blocks
+      // APPROVE, not safety-driven rejections.
+      const result = computeAlgorithmicVerdict([
+        makeAssessment({
+          moduleId: "sentinel",
+          score: 20,
+          riskLevel: "critical",
+          findings: [
+            makeFinding({
+              id: "S1",
+              severity: "critical",
+              title: "Hardcoded credential",
+              category: "secrets",
+            }),
+          ],
+        }),
+        makeAssessment({
+          moduleId: "watchdog",
+          status: "failed",
+          score: 0,
+          error: "boom",
+        }),
+        makeAssessment({
+          moduleId: "guardian",
+          status: "failed",
+          score: 0,
+          error: "boom",
+        }),
+      ]);
+      expect(result.verdict).toBe("REJECT");
+    });
+
+    it("does NOT downgrade when exactly 2 of 3 modules complete", () => {
+      // Two independent modules is enough corroboration — coverage floor
+      // only kicks in below 2 completed.
+      const result = computeAlgorithmicVerdict([
+        makeAssessment({
+          moduleId: "sentinel",
+          score: 88,
+          riskLevel: "low",
+          findings: [],
+        }),
+        makeAssessment({
+          moduleId: "watchdog",
+          score: 85,
+          riskLevel: "low",
+          findings: [],
+        }),
+        makeAssessment({
+          moduleId: "guardian",
+          status: "failed",
+          score: 0,
+          error: "boom",
+        }),
+      ]);
+      expect(result.verdict).toBe("APPROVE");
+      expect(
+        result.deliberation.confidenceFactors.some((f) =>
+          /insufficient coverage/i.test(f),
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe("REVIEW fixture sanity check", () => {
     it("reviewTriggerAssessments resolves to REVIEW", () => {
       const result = computeAlgorithmicVerdict(reviewTriggerAssessments());

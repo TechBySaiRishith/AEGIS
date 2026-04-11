@@ -11,6 +11,17 @@ const REJECT_SCORE_THRESHOLD = 30;
 const REVIEW_SCORE_THRESHOLD = 60;
 const HIGH_FINDING_MODULE_THRESHOLD = 2;
 
+/**
+ * Minimum number of completed modules required to issue an APPROVE
+ * verdict. A single module has no independent corroboration — council
+ * safety requires at least two experts agreeing before the council will
+ * sign off on an application.
+ */
+const MIN_MODULES_FOR_APPROVE = 2;
+
+/** Confidence ceiling applied when coverage is below the floor. */
+const COVERAGE_FLOOR_CONFIDENCE_CAP = 0.5;
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function hasCriticalFinding(assessment: ExpertAssessment): boolean {
@@ -258,6 +269,23 @@ export function computeAlgorithmicVerdict(
     }
   }
 
+  // ── Coverage floor: APPROVE requires at least MIN_MODULES_FOR_APPROVE
+  //    completed modules. A single surviving module has no independent
+  //    corroboration, so we downgrade APPROVE → REVIEW. REJECT is *not*
+  //    downgraded — the council always defers to the stricter assessment.
+  const coverageFloorTriggered =
+    verdict === "APPROVE" &&
+    completedAssessments.length < MIN_MODULES_FOR_APPROVE;
+
+  if (coverageFloorTriggered) {
+    verdict = "REVIEW";
+    reasons.push(
+      `Coverage floor — only ${completedAssessments.length} of ${assessments.length} ` +
+      `module(s) completed; APPROVE requires ≥${MIN_MODULES_FOR_APPROVE} for independent ` +
+      `corroboration. Downgraded to REVIEW pending a rerun of the failed module(s).`,
+    );
+  }
+
   if (verdict === "APPROVE") {
     reasons.push("All modules passed with acceptable scores and no critical/high-risk concerns across the board");
   }
@@ -368,6 +396,24 @@ export function computeAlgorithmicVerdict(
     confidence = Math.max(0.1, confidence - penalty);
     confidenceFactors.push(
       `-${Math.round(penalty * 100)}% confidence: ${failedModules.length} module(s) failed to complete — reduced coverage`,
+    );
+  }
+
+  // Coverage-floor cap: when the council had to downgrade APPROVE → REVIEW
+  // due to insufficient coverage, cap conviction at the coverage-floor
+  // ceiling regardless of how convinced the single surviving module was.
+  // Always emit the coverage factor when the floor triggers so the
+  // arbitration log explains the cap even if numeric confidence already
+  // sits below the ceiling (e.g., the sole completed module no longer
+  // "agrees" with the post-downgrade REVIEW verdict).
+  if (coverageFloorTriggered) {
+    if (confidence > COVERAGE_FLOOR_CONFIDENCE_CAP) {
+      confidence = COVERAGE_FLOOR_CONFIDENCE_CAP;
+    }
+    confidenceFactors.push(
+      `Capped at ${Math.round(COVERAGE_FLOOR_CONFIDENCE_CAP * 100)}%: insufficient coverage — ` +
+      `${completedAssessments.length}/${assessments.length} module(s) completed, below the ` +
+      `${MIN_MODULES_FOR_APPROVE}-module minimum for high-confidence verdicts`,
     );
   }
 
