@@ -10,6 +10,7 @@ import type {
   RiskSummaryEntry,
   ActionableRecommendation,
   CouncilDeliberation,
+  Verdict,
 } from "@aegis/shared";
 
 // ─── Module display names ──────────────────────────────────
@@ -257,7 +258,7 @@ export function buildExecutiveSummary(
   appName: string,
   appDescription: string,
   framework: string,
-  verdict: string,
+  verdict: Verdict,
   assessments: ExpertAssessment[],
   council: CouncilVerdict,
 ): string {
@@ -355,7 +356,7 @@ export function buildExecutiveSummary(
  */
 export function buildPlainLanguageSummary(
   applicationName: string,
-  verdict: string,
+  verdict: Verdict,
   assessments: ExpertAssessment[],
 ): string {
   const headline =
@@ -598,7 +599,6 @@ export function generateReport(evaluation: EvaluationData): EvaluationReport {
     moduleSummaries[a.moduleId] = buildModuleSection(a);
   }
 
-  // Application context for VeriMedia-specific output
   const framework = applicationProfile?.framework ?? "";
   const appContext = extractAppContext(
     applicationName,
