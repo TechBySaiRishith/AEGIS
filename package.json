@@ -5,7 +5,7 @@
     "dev": "run-p dev:api dev:web",
     "dev:api": "pnpm --filter @aegis/api dev",
     "dev:web": "pnpm --filter @aegis/web dev",
-    "build": "pnpm -r build",
+    "build": "pnpm --filter @aegis/shared build && pnpm --filter @aegis/api build && pnpm --filter @aegis/web build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "docker:up": "docker compose up --build",

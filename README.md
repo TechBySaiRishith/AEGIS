@@ -3,8 +3,6 @@
 **AEGIS** (Adversarial Evaluation & Governance Intelligence System) is an automated AI safety evaluation platform built for the [UNICC](https://www.unicc.org/) AI Safety Lab. It analyzes AI-integrated repositories, conversation logs, and API endpoints through a **Council of Experts** architecture — three independent, framework-grounded expert modules that run in parallel, followed by an algorithmic synthesis pipeline that produces a deterministic safety verdict: **APPROVE**, **REVIEW**, or **REJECT**.
 
 > **NYU SPS MASY GC-4100 — Spring 2026 Capstone Project**
->
-> For the evaluator guide (how to run, what to expect, rubric mapping), see [`docs/EVALUATION.md`](docs/EVALUATION.md).
 
 ---
 
@@ -318,7 +316,7 @@ docker compose down && docker compose up --build
 
 ## Quick Start — Local Development
 
-**Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io/) (if you don't have pnpm: `npm install -g pnpm`)
+**Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io/) (if you don't have pnpm: `npm install -g pnpm`). On platforms without prebuilt `better-sqlite3` binaries, a C++ toolchain is also needed (`build-essential` on Debian/Ubuntu, Xcode CLT on macOS) — see the [better-sqlite3 note](#better-sqlite3-native-binary) below, or use Docker to skip this entirely.
 
 ```bash
 # One-command setup (installs pnpm if needed, then dependencies + .env)
