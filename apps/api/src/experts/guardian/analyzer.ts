@@ -12,6 +12,7 @@ import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
 import { extractJSON, truncateProfile, capPromptSize } from "../utils.js";
+import { enforceModuleScope } from "../scope-filter.js";
 import {
   GUARDIAN_SYSTEM_PROMPT,
   buildGuardianUserPrompt,
@@ -275,9 +276,10 @@ export class GuardianAnalyzer implements ExpertModule {
         maxTokens: 8_000,
       });
 
-      // 5. Parse and convert to findings
+      // 5. Parse and convert to findings (with scope enforcement)
       const parsed = parseLLMResponse(llmResponse.content);
-      const findings = toFindings(parsed);
+      const rawFindings = toFindings(parsed);
+      const findings = enforceModuleScope(rawFindings, "guardian");
 
       // Use LLM-provided score if valid, otherwise derive from findings
       const score = typeof parsed.score === "number"

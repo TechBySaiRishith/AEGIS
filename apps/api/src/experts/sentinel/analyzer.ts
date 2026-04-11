@@ -16,6 +16,7 @@ import type { LLMProvider } from "../../llm/provider.js";
 import type { ExpertModule } from "../base.js";
 import { config } from "../../config.js";
 import { extractJSON, truncateProfile, capPromptSize } from "../utils.js";
+import { enforceModuleScope } from "../scope-filter.js";
 import { SENTINEL_SYSTEM_PROMPT, buildSentinelUserPrompt } from "./prompts.js";
 
 // ─── Constants ───────────────────────────────────────────────
@@ -326,8 +327,9 @@ export class SentinelAnalyzer implements ExpertModule {
         );
       }
 
-      // 6. Convert to typed structures
-      const findings = parseFindings(parsed.findings ?? []);
+      // 6. Convert to typed structures and enforce scope boundaries
+      const rawFindings = parseFindings(parsed.findings ?? []);
+      const findings = enforceModuleScope(rawFindings, "sentinel");
       const score =
         typeof parsed.score === "number"
           ? Math.max(0, Math.min(100, parsed.score))

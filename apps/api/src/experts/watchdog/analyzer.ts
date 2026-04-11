@@ -12,6 +12,7 @@ import type { ExpertModule } from "../base.js";
 import type { LLMProvider } from "../../llm/provider.js";
 import { config } from "../../config.js";
 import { extractJSON, truncateProfile, capPromptSize } from "../utils.js";
+import { enforceModuleScope } from "../scope-filter.js";
 import {
   WATCHDOG_SYSTEM_PROMPT,
   buildWatchdogUserPrompt,
@@ -344,8 +345,9 @@ export class WatchdogAnalyzer implements ExpertModule {
         );
       }
 
-      // 6. Transform into ExpertAssessment
-      const findings = parseFindings(parsed.findings ?? []);
+      // 6. Transform into ExpertAssessment (with scope enforcement)
+      const rawFindings = parseFindings(parsed.findings ?? []);
+      const findings = enforceModuleScope(rawFindings, "watchdog");
       const score = typeof parsed.score === "number"
         ? Math.max(0, Math.min(100, parsed.score))
         : this.deriveScore(findings);
