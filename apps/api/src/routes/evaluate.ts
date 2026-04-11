@@ -278,19 +278,36 @@ async function runEvaluation(evaluationId: string, request: EvaluateRequest): Pr
 evaluate.post("/", async (c) => {
   const body = await c.req.json<EvaluateRequest>();
 
-  if (!body.source || !body.inputType) {
-    return c.json({ error: "Missing required fields: inputType, source" }, 400);
+  // For conversation_json, allow sourceUrl as an alternative to inline source
+  let source = body.source;
+  if (body.inputType === "conversation_json" && !source && body.sourceUrl) {
+    try {
+      const resp = await fetch(body.sourceUrl);
+      if (!resp.ok) {
+        return c.json({ error: `Failed to fetch conversation JSON from URL (HTTP ${resp.status})` }, 400);
+      }
+      source = await resp.text();
+    } catch {
+      return c.json({ error: "Failed to fetch conversation JSON from URL" }, 400);
+    }
   }
 
+  if (!source || !body.inputType) {
+    return c.json({ error: "Missing required fields: inputType, source (or sourceUrl for conversation_json)" }, 400);
+  }
+
+  // Use the resolved source for downstream processing
+  const resolvedRequest: EvaluateRequest = { ...body, source };
+
   const record = createEvaluation({
-    inputType: body.inputType,
-    sourceUrl: body.source,
-    applicationName: body.source,
-    applicationDescription: body.description,
+    inputType: resolvedRequest.inputType,
+    sourceUrl: resolvedRequest.source,
+    applicationName: resolvedRequest.source,
+    applicationDescription: resolvedRequest.description,
   });
 
   // Fire-and-forget — the pipeline runs in the background
-  runEvaluation(record.id, body).catch((err) => {
+  runEvaluation(record.id, resolvedRequest).catch((err) => {
     console.error(`[evaluate] Unhandled error in background pipeline: ${err}`);
   });
 
