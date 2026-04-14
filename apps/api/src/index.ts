@@ -7,6 +7,8 @@ import { health } from "./routes/health.js";
 import { evaluate } from "./routes/evaluate.js";
 import { configRoutes } from "./routes/config.js";
 import { log } from "./logger.js";
+import { chat } from "./chat/routes.js";
+import { uploadsRoute } from "./chat/uploadsRoute.js";
 
 // ─── Validate environment before anything else ─────────────
 
@@ -32,6 +34,8 @@ app.route("/api/health", health);
 app.route("/api/evaluate", evaluate);
 app.route("/api/evaluations", evaluate);
 app.route("/api/config", configRoutes);
+app.route("/api/evaluations", chat);
+app.route("/api/uploads", uploadsRoute);
 
 // ─── Startup banner ────────────────────────────────────────
 

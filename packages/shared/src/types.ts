@@ -276,6 +276,54 @@ export interface SSEEvent {
   data: Record<string, unknown>;
 }
 
+// ─── Chat ──────────────────────────────────────────────────
+
+export type ChatRole = "user" | "assistant" | "system";
+export type ChatMessageStatus = "pending" | "streaming" | "complete" | "error";
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  url: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  evaluationId: string;
+  role: ChatRole;
+  content: string;
+  attachments: ChatAttachment[];
+  status: ChatMessageStatus;
+  createdAt: number; // unix ms
+  tokenUsage?: { prompt: number; completion: number };
+  errorMessage?: string;
+}
+
+export type ChatSSEEvent =
+  | { type: "message.start"; messageId: string; createdAt: number }
+  | { type: "message.delta"; messageId: string; delta: string }
+  | { type: "message.citation"; messageId: string; findingId: string }
+  | { type: "message.done"; messageId: string; tokenUsage?: { prompt: number; completion: number } }
+  | { type: "message.error"; messageId: string; code: string; message: string };
+
+export const CHAT_LIMITS = {
+  maxFilesPerMessage: 3,
+  maxFileBytes: 10 * 1024 * 1024, // 10 MB
+  maxPdfPages: 20,
+  maxImagePixels: 4096,
+  maxMessagesPerMinute: 30,
+  maxMessagesPerThread: 500,
+  allowedMimeTypes: [
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+  ] as const,
+} as const;
+
 // ─── API Request/Response ──────────────────────────────────
 
 export interface EvaluateRequest {

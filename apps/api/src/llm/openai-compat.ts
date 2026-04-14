@@ -3,6 +3,9 @@ import type { LLMResponse, LLMProvider as LLMProviderType } from "@aegis/shared"
 import {
   type LLMProvider,
   type CompletionOptions,
+  type ChatTurn,
+  type ChatStreamOptions,
+  type ChatStreamChunk,
   LLMError,
   DEFAULT_TIMEOUT_MS,
   MAX_RETRIES,
@@ -29,7 +32,8 @@ export class OpenAICompatProvider implements LLMProvider {
   readonly displayName: string;
   readonly model: string;
 
-  private client: OpenAI | null = null;
+  // Allow injection in tests
+  client: OpenAI | null = null;
   private readonly apiKey: string | undefined;
   private readonly baseURL: string | undefined;
 
@@ -152,6 +156,54 @@ export class OpenAICompatProvider implements LLMProvider {
       "unknown",
       lastError,
     );
+  }
+
+  supportsVision() { return /gpt-4o|gpt-4\.1|o\d/i.test(this.model); }
+
+  async *chatStream(messages: ChatTurn[], options?: ChatStreamOptions): AsyncIterable<ChatStreamChunk> {
+    if (!this.isAvailable()) {
+      throw new LLMError(`${this.displayName} API key is not configured`, this.id, "auth");
+    }
+
+    if (!this.client) {
+      this.client = new OpenAI({
+        apiKey: this.apiKey,
+        ...(this.baseURL ? { baseURL: this.baseURL } : {}),
+      });
+    }
+
+    const mapped = messages.map(m => ({
+      role: m.role,
+      content: typeof m.content === "string"
+        ? m.content
+        : m.content.map(p => {
+            if (p.type === "text") return { type: "text", text: p.text };
+            if (p.type === "image") return { type: "image_url", image_url: { url: `data:${p.mime};base64,${p.dataBase64}` } };
+            return { type: "text", text: `[File: ${p.name} (${p.mime})]` }; // PDF not natively supported by OpenAI chat — text fallback
+          }),
+    }));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const completionsAny = this.client.chat.completions as any;
+    const stream = await completionsAny.stream({
+      model: this.model,
+      messages: mapped as never,
+      temperature: options?.temperature ?? 0.3,
+      max_tokens: options?.maxTokens ?? 4096,
+      stream_options: { include_usage: true },
+    });
+
+    let promptTokens = 0;
+    let completionTokens = 0;
+    for await (const chunk of stream as AsyncIterable<{ choices: Array<{ delta?: { content?: string }; finish_reason?: string }>; usage?: { prompt_tokens?: number; completion_tokens?: number } }>) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) yield { delta };
+      if (chunk.usage) {
+        if (chunk.usage.prompt_tokens) promptTokens = chunk.usage.prompt_tokens;
+        if (chunk.usage.completion_tokens) completionTokens = chunk.usage.completion_tokens;
+      }
+    }
+    yield { done: true, tokenUsage: { prompt: promptTokens, completion: completionTokens } };
   }
 }
 

@@ -11,6 +11,29 @@ export interface CompletionOptions {
   systemPrompt?: string;
 }
 
+// ─── Chat Message Types ───────────────────────────────────────
+export interface ChatContentText { type: "text"; text: string; }
+export interface ChatContentImage { type: "image"; mime: string; dataBase64: string; }
+export interface ChatContentFile { type: "file"; mime: string; dataBase64: string; name: string; }
+export type ChatContentPart = ChatContentText | ChatContentImage | ChatContentFile;
+
+export interface ChatTurn {
+  role: "system" | "user" | "assistant";
+  content: string | ChatContentPart[];
+}
+
+export interface ChatStreamOptions {
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+}
+
+export interface ChatStreamChunk {
+  delta?: string;
+  done?: boolean;
+  tokenUsage?: { prompt: number; completion: number };
+}
+
 // ─── Provider Interface ──────────────────────────────────────
 export interface LLMProvider {
   /** Unique provider key — matches the shared LLMProvider union */
@@ -27,6 +50,12 @@ export interface LLMProvider {
 
   /** True when the provider has valid credentials configured */
   isAvailable(): boolean;
+
+  /** Stream a multi-turn chat completion with optional multimodal parts. Optional — throws if unsupported. */
+  chatStream?(messages: ChatTurn[], options?: ChatStreamOptions): AsyncIterable<ChatStreamChunk>;
+
+  /** True when this provider supports vision + chatStream */
+  supportsVision?(): boolean;
 }
 
 // ─── Error Types ─────────────────────────────────────────────

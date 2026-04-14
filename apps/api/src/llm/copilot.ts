@@ -2,6 +2,9 @@ import type { LLMResponse, LLMProvider as LLMProviderType } from "@aegis/shared"
 import {
   type LLMProvider,
   type CompletionOptions,
+  type ChatTurn,
+  type ChatStreamOptions,
+  type ChatStreamChunk,
   LLMError,
   DEFAULT_TIMEOUT_MS,
   MAX_RETRIES,
@@ -237,6 +240,138 @@ export class CopilotProvider implements LLMProvider {
       "unknown",
       lastError,
     );
+  }
+
+  supportsVision(): boolean {
+    return /claude|gpt-4o|gpt-4\.1/i.test(this.model);
+  }
+
+  async *chatStream(
+    messages: ChatTurn[],
+    options?: ChatStreamOptions,
+  ): AsyncIterable<ChatStreamChunk> {
+    if (!this.isAvailable()) {
+      throw new LLMError(
+        "Copilot GitHub token is not configured",
+        PROVIDER_ID,
+        "auth",
+      );
+    }
+
+    const copilotToken = await this.getCopilotToken();
+
+    const mapped = messages.map((m) => ({
+      role: m.role,
+      content:
+        typeof m.content === "string"
+          ? m.content
+          : m.content.map((p) => {
+              if (p.type === "text") return { type: "text", text: p.text };
+              if (p.type === "image")
+                return {
+                  type: "image_url",
+                  image_url: { url: `data:${p.mime};base64,${p.dataBase64}` },
+                };
+              return { type: "text", text: `[File: ${p.name} (${p.mime})]` };
+            }),
+    }));
+
+    const body = JSON.stringify({
+      model: this.model,
+      messages: mapped,
+      max_completion_tokens: options?.maxTokens ?? 4096,
+      temperature: options?.temperature ?? 0.3,
+      stream: true,
+    });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    if (options?.signal) {
+      options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(COPILOT_CHAT_URL, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${copilotToken}`,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          "Editor-Version": EDITOR_VERSION,
+          "Copilot-Integration-Id": INTEGRATION_ID,
+        },
+        body,
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      throw new LLMError(
+        `Copilot chatStream request failed: ${err instanceof Error ? err.message : String(err)}`,
+        PROVIDER_ID,
+        isAbortError(err) ? "timeout" : "unknown",
+        err,
+      );
+    }
+
+    if (!res.ok || !res.body) {
+      clearTimeout(timer);
+      const text = await res.text().catch(() => "");
+      throw new LLMError(
+        `Copilot chatStream error ${res.status}: ${text}`,
+        PROVIDER_ID,
+        res.status === 401 || res.status === 403 ? "auth" : "unknown",
+      );
+    }
+
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    let promptTokens = 0;
+    let completionTokens = 0;
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+
+        let sepIdx;
+        while ((sepIdx = buffer.indexOf("\n\n")) !== -1) {
+          const frame = buffer.slice(0, sepIdx);
+          buffer = buffer.slice(sepIdx + 2);
+          for (const line of frame.split("\n")) {
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (!data || data === "[DONE]") continue;
+            try {
+              const chunk = JSON.parse(data) as {
+                choices?: Array<{
+                  delta?: { content?: string };
+                  finish_reason?: string | null;
+                }>;
+                usage?: {
+                  prompt_tokens?: number;
+                  completion_tokens?: number;
+                };
+              };
+              const delta = chunk.choices?.[0]?.delta?.content;
+              if (delta) yield { delta };
+              if (chunk.usage) {
+                if (chunk.usage.prompt_tokens) promptTokens = chunk.usage.prompt_tokens;
+                if (chunk.usage.completion_tokens) completionTokens = chunk.usage.completion_tokens;
+              }
+            } catch {
+              // Ignore malformed SSE frames
+            }
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+      reader.releaseLock();
+    }
+
+    yield { done: true, tokenUsage: { prompt: promptTokens, completion: completionTokens } };
   }
 
   // ─── Token management ────────────────────────────────────

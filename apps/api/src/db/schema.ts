@@ -51,3 +51,27 @@ export const verdicts = sqliteTable("verdicts", {
   llmEnhanced: integer("llm_enhanced", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
 });
+
+// ─── Chat ──────────────────────────────────────────────────
+
+export const chatMessages = sqliteTable("chat_messages", {
+  id: text("id").primaryKey(),
+  evaluationId: text("evaluation_id").notNull().references(() => evaluations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  attachments: text("attachments").notNull().default("[]"), // JSON
+  tokenUsage: text("token_usage"), // JSON
+  status: text("status").notNull().default("complete"),
+  errorMessage: text("error_message"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const chatUploads = sqliteTable("chat_uploads", {
+  id: text("id").primaryKey(),
+  evaluationId: text("evaluation_id").notNull().references(() => evaluations.id, { onDelete: "cascade" }),
+  originalName: text("original_name").notNull(),
+  mime: text("mime").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  storagePath: text("storage_path").notNull(),
+  createdAt: integer("created_at").notNull(),
+});

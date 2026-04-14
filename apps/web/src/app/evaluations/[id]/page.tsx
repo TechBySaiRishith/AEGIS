@@ -24,6 +24,7 @@ import type {
 } from "@aegis/shared";
 import { getEvaluation, getEvaluationReportHtmlUrl, subscribeToEvents } from "@/lib/api";
 import FrameworkTooltip from "@/components/FrameworkTooltip";
+import { ChatDrawer } from "@/components/ChatDrawer/ChatDrawer";
 
 const MODULE_ACCENTS: Record<ExpertModuleId, string> = {
   sentinel: "var(--sentinel)",
@@ -1633,6 +1634,7 @@ export default function EvaluationDetailPage() {
   const [events, setEvents] = useState<SSEEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const fetchEvaluation = useCallback(async () => {
     try {
@@ -1734,6 +1736,14 @@ export default function EvaluationDetailPage() {
           >
             ← All evaluations
           </button>
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            disabled={!isComplete}
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-2 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Ask AEGIS
+          </button>
         </div>
 
         <div className="mt-6 flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
@@ -1792,6 +1802,13 @@ export default function EvaluationDetailPage() {
 
       {!isComplete && !isFailed ? <LiveProgress evaluation={evaluation} events={events} /> : null}
       {isComplete ? <CompletedResults evaluation={evaluation} /> : null}
+
+      <ChatDrawer
+        evaluationId={id}
+        verdict={evaluation.council?.verdict}
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+      />
     </div>
   );
 }

@@ -61,6 +61,29 @@ sqlite.exec(`
     llm_enhanced        INTEGER NOT NULL DEFAULT 0,
     created_at          TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS chat_messages (
+    id             TEXT PRIMARY KEY,
+    evaluation_id  TEXT NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+    role           TEXT NOT NULL,
+    content        TEXT NOT NULL,
+    attachments    TEXT NOT NULL DEFAULT '[]',
+    token_usage    TEXT,
+    status         TEXT NOT NULL DEFAULT 'complete',
+    error_message  TEXT,
+    created_at     INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_messages_eval_time ON chat_messages(evaluation_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS chat_uploads (
+    id             TEXT PRIMARY KEY,
+    evaluation_id  TEXT NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+    original_name  TEXT NOT NULL,
+    mime           TEXT NOT NULL,
+    size_bytes     INTEGER NOT NULL,
+    storage_path   TEXT NOT NULL,
+    created_at     INTEGER NOT NULL
+  );
 `);
 
 export const db = drizzle(sqlite, { schema });

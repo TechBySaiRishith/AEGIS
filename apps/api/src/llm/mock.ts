@@ -1,5 +1,5 @@
 import type { LLMResponse, LLMProvider as LLMProviderType } from "@aegis/shared";
-import type { LLMProvider, CompletionOptions } from "./provider.js";
+import type { LLMProvider, CompletionOptions, ChatTurn, ChatStreamChunk } from "./provider.js";
 
 const PROVIDER_ID: LLMProviderType = "mock";
 
@@ -821,5 +821,18 @@ export class MockProvider implements LLMProvider {
       provider: this.id,
       usage: { inputTokens: 0, outputTokens: 0 },
     };
+  }
+
+  supportsVision() { return true; }
+
+  async *chatStream(messages: ChatTurn[]): AsyncIterable<ChatStreamChunk> {
+    const last = messages[messages.length - 1];
+    const prompt = typeof last.content === "string" ? last.content : "(multimodal)";
+    const reply = `Mock reply to: ${prompt.slice(0, 100)}`;
+    for (const word of reply.split(" ")) {
+      await new Promise(r => setTimeout(r, 5));
+      yield { delta: word + " " };
+    }
+    yield { done: true, tokenUsage: { prompt: 10, completion: reply.split(" ").length } };
   }
 }
