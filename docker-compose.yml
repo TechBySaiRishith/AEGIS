@@ -4,11 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5555:5555"
+      - "${WEB_PORT:-5555}:5555"
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./data:/app/data
+      - ${DATA_DIR:-./data}:/app/data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:5555/api/health"]
       interval: 10s
